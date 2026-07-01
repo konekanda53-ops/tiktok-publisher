@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TikTok IA Studio — Tableau de bord</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- Barre latérale -->
+    <nav class="sidebar">
+      <div class="marque">
+        <a href="/" class="eyebrow lien-marque">← TikTok IA Studio</a>
+      </div>
+      <ul class="nav-liste">
+        <li><button class="nav-item actif" data-section="dashboard">🏠 <span>Dashboard</span></button></li>
+        <li><button class="nav-item" data-section="connexion">🔐 <span>Connexion</span></button></li>
+        <li><button class="nav-item" data-section="script">✍️ <span>Script IA</span></button></li>
+        <li><button class="nav-item" data-section="voix">🎙️ <span>Voix</span></button></li>
+        <li><button class="nav-item" data-section="video">🎬 <span>Vidéo</span></button></li>
+        <li><button class="nav-item" data-section="publication">📤 <span>Publication</span></button></li>
+        <li><button class="nav-item" data-section="stats">📊 <span>Statistiques</span></button></li>
+      </ul>
+      <div class="sidebar-statut">
+        <span class="point" id="point-statut"></span>
+        <span id="texte-statut-sidebar">Non connecté</span>
+      </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="contenu">
+
+      <!-- DASHBOARD -->
+      <section class="section actif" id="section-dashboard">
+        <header class="entete-section">
+          <h1>Dashboard</h1>
+          <p class="texte-attenue">Vue d'ensemble de ton studio de contenu.</p>
+        </header>
+
+        <div class="grille-cartes">
+          <div class="mini-carte">
+            <p class="mini-carte-label">Compte TikTok</p>
+            <p class="mini-carte-valeur" id="resume-compte">Non connecté</p>
+          </div>
+          <div class="mini-carte">
+            <p class="mini-carte-label">Scripts générés</p>
+            <p class="mini-carte-valeur" id="resume-scripts">0</p>
+          </div>
+          <div class="mini-carte">
+            <p class="mini-carte-label">Vidéos publiées</p>
+            <p class="mini-carte-valeur" id="resume-publications">0</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Parcours recommandé</h2>
+          <ol class="parcours">
+            <li data-cible="connexion">🔐 Connecte ton compte TikTok</li>
+            <li data-cible="script">✍️ Génère une idée et un script avec l'IA</li>
+            <li data-cible="voix">🎙️ Ajoute une voix (bientôt disponible)</li>
+            <li data-cible="video">🎬 Assemble la vidéo (bientôt disponible)</li>
+            <li data-cible="publication">📤 Publie sur TikTok</li>
+            <li data-cible="stats">📊 Suis tes statistiques (bientôt disponible)</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- CONNEXION -->
+      <section class="section" id="section-connexion">
+        <header class="entete-section">
+          <h1>Connexion TikTok</h1>
+          <p class="texte-attenue">Autorise l'application à publier sur ton compte.</p>
+        </header>
+
+        <div class="card" id="carte-connexion">
+          <div id="etat-non-connecte" class="etat">
+            <p class="texte-attenue">Aucun compte connecté pour le moment.</p>
+            <button id="btn-connecter" class="bouton bouton-or">Connecter mon compte TikTok</button>
+          </div>
+
+          <div id="etat-connecte" class="etat cache">
+            <div class="profil">
+              <img id="avatar" class="avatar" alt="Avatar du créateur" />
+              <div>
+                <p class="profil-nom" id="nom-createur">—</p>
+                <p class="profil-pseudo" id="pseudo-createur">—</p>
+              </div>
+            </div>
+            <p class="texte-attenue" id="info-limite-video"></p>
+            <button id="btn-deconnecter" class="bouton bouton-discret">Déconnecter</button>
+          </div>
+
+          <p id="erreur-connexion" class="erreur cache"></p>
+        </div>
+      </section>
+
+      <!-- SCRIPT IA -->
+      <section class="section" id="section-script">
+        <header class="entete-section">
+          <h1>Génération de script IA</h1>
+          <p class="texte-attenue">Idée, script, titre, description SEO et hashtags en un clic.</p>
+        </header>
+
+        <div class="layout-deux">
+          <div class="card">
+            <h2 class="card-title">Paramètres</h2>
+            <label>Catégorie</label>
+            <div class="chip-row" id="chips-categorie"></div>
+
+            <label for="champ-sujet">Sujet précis (facultatif)</label>
+            <input type="text" id="champ-sujet" placeholder="ex : Mansa Moussa, les pyramides..." />
+
+            <label for="champ-duree">Durée</label>
+            <select id="champ-duree">
+              <option>30 s</option>
+              <option selected>45 s</option>
+              <option>1 min</option>
+              <option>3 min</option>
+            </select>
+
+            <label for="champ-langue">Langue</label>
+            <select id="champ-langue">
+              <option selected>Français</option>
+              <option>Anglais</option>
+            </select>
+
+            <button id="btn-generer-script" class="bouton bouton-or bouton-large">Générer la vidéo</button>
+            <p id="erreur-script" class="erreur cache"></p>
+          </div>
+
+          <div class="card" id="carte-resultat-script">
+            <div class="resultat-vide">
+              <p class="texte-attenue">Lance une génération pour voir le résultat ici.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VOIX -->
+      <section class="section" id="section-voix">
+        <header class="entete-section">
+          <h1>Voix IA</h1>
+          <p class="texte-attenue">Transforme le script en narration audio.</p>
+        </header>
+        <div class="card carte-bientot">
+          <p class="badge-bientot">Bientôt disponible</p>
+          <p class="texte-attenue">
+            Cette étape nécessite de brancher un service de synthèse vocale
+            (ElevenLabs, OpenAI TTS…) avec ta propre clé API, puis d'ajouter
+            une route serveur qui transforme le champ <code>script</code> généré
+            ci-contre en fichier audio.
+          </p>
+        </div>
+      </section>
+
+      <!-- VIDÉO -->
+      <section class="section" id="section-video">
+        <header class="entete-section">
+          <h1>Création vidéo</h1>
+          <p class="texte-attenue">Assemble images, voix, sous-titres et musique.</p>
+        </header>
+        <div class="card carte-bientot">
+          <p class="badge-bientot">Bientôt disponible</p>
+          <p class="texte-attenue">
+            Cette étape nécessite un générateur d'images, la voix générée à
+            l'étape précédente, et un pipeline serveur (ffmpeg) qui assemble le
+            tout en un fichier vidéo hébergé sur ton domaine vérifié TikTok.
+          </p>
+        </div>
+      </section>
+
+      <!-- PUBLICATION -->
+      <section class="section" id="section-publication">
+        <header class="entete-section">
+          <h1>Publier une vidéo</h1>
+          <p class="texte-attenue">Envoie ta vidéo directement sur ton compte TikTok.</p>
+        </header>
+
+        <div class="card" id="carte-publication">
+          <form id="formulaire-publication">
+            <label for="champ-url">URL de la vidéo (domaine vérifié sur TikTok)</label>
+            <input type="url" id="champ-url" placeholder="https://ton-domaine-verifie.com/videos/exemple.mp4" required />
+
+            <label for="champ-titre">
+              Titre / légende
+              <span class="compteur" id="compteur-titre">0 / 2200</span>
+            </label>
+            <textarea id="champ-titre" rows="3" maxlength="2200" placeholder="Le roi le plus riche de l'histoire 😳 #histoire #afrique" required></textarea>
+
+            <label for="champ-confidentialite">Confidentialité</label>
+            <select id="champ-confidentialite" required>
+              <option value="">Connecte d'abord un compte…</option>
+            </select>
+
+            <div class="cases">
+              <label class="case"><input type="checkbox" id="case-commentaire" /> Désactiver les commentaires</label>
+              <label class="case"><input type="checkbox" id="case-duet" /> Désactiver les duos</label>
+              <label class="case"><input type="checkbox" id="case-stitch" /> Désactiver les stitchs</label>
+            </div>
+
+            <button type="submit" class="bouton bouton-or bouton-large" id="btn-publier" disabled>
+              Publier la vidéo
+            </button>
+          </form>
+          <p id="erreur-publication" class="erreur cache"></p>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Suivi des publications</h2>
+          <ul id="liste-publications" class="liste-publications">
+            <li class="texte-attenue">Aucune publication dans cette session.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- STATS -->
+      <section class="section" id="section-stats">
+        <header class="entete-section">
+          <h1>Statistiques et hashtags</h1>
+          <p class="texte-attenue">Vues, engagement, tendances et conseils.</p>
+        </header>
+        <div class="card carte-bientot">
+          <p class="badge-bientot">Bientôt disponible</p>
+          <p class="texte-attenue">
+            L'accès aux statistiques détaillées nécessite le scope
+            <code>video.list</code> / <code>research.data.basic</code> de l'API
+            TikTok, soumis aux mêmes conditions d'audit que la publication.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
