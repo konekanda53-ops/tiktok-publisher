@@ -1,3 +1,4 @@
+console.log("TEST GITHUB");
 import "dotenv/config";
 import express from "express";
 import path from "path";
