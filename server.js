@@ -183,6 +183,19 @@ app.post("/api/generate-script", async (req, res) => {
   }
 });
 
+app.get("/privacy", (req, res) => {
+  res.send(`
+    <h1>Privacy Policy</h1>
+    <p>TikTok IA Studio only accesses the permissions granted by the user through TikTok Login Kit. We do not sell or share personal data.</p>
+  `);
+});
+
+app.get("/terms", (req, res) => {
+  res.send(`
+    <h1>Terms of Service</h1>
+    <p>By using TikTok IA Studio, you agree to use the application in accordance with TikTok's Terms of Service.</p>
+  `);
+});
 app.listen(PORT, () => {
   console.log(`✅ Serveur prêt sur http://localhost:${PORT}`);
   console.log(`   Connecte un compte TikTok ici : http://localhost:${PORT}/auth/tiktok/start`);
