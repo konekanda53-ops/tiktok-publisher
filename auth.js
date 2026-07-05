@@ -21,7 +21,7 @@ export function construireUrlAutorisation({ clientKey, redirectUri, state, codeC
   url.searchParams.set("client_key", clientKey);
   // Scopes nécessaires : info de base + publication directe.
   // "video.publish" doit être explicitement approuvé pour ton app dans le portail développeur.
-  url.searchParams.set("scope", "user.info.basic,video.publish");
+  url.searchParams.set("scope", "user.info.basic");
   url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
