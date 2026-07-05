@@ -175,34 +175,28 @@
       <!-- PUBLICATION -->
       <section class="section" id="section-publication">
         <header class="entete-section">
-          <h1>Publier une vidéo</h1>
-          <p class="texte-attenue">Envoie ta vidéo directement sur ton compte TikTok.</p>
+          <h1>Envoyer une vidéo vers TikTok</h1>
+          <p class="texte-attenue">La vidéo est envoyée en brouillon dans ton app TikTok — tu la publies toi-même depuis là.</p>
         </header>
 
         <div class="card" id="carte-publication">
           <form id="formulaire-publication">
-            <label for="champ-url">URL de la vidéo (domaine vérifié sur TikTok)</label>
-            <input type="url" id="champ-url" placeholder="https://ton-domaine-verifie.com/videos/exemple.mp4" required />
+            <label for="champ-fichier">Fichier vidéo (MP4, max. 150 Mo)</label>
+            <input type="file" id="champ-fichier" accept="video/mp4,video/quicktime" required />
 
             <label for="champ-titre">
-              Titre / légende
+              Note personnelle (non envoyée à TikTok pour l'instant)
               <span class="compteur" id="compteur-titre">0 / 2200</span>
             </label>
-            <textarea id="champ-titre" rows="3" maxlength="2200" placeholder="Le roi le plus riche de l'histoire 😳 #histoire #afrique" required></textarea>
+            <textarea id="champ-titre" rows="3" maxlength="2200" placeholder="Le roi le plus riche de l'histoire 😳 #histoire #afrique"></textarea>
 
-            <label for="champ-confidentialite">Confidentialité</label>
-            <select id="champ-confidentialite" required>
-              <option value="">Connecte d'abord un compte…</option>
-            </select>
-
-            <div class="cases">
-              <label class="case"><input type="checkbox" id="case-commentaire" /> Désactiver les commentaires</label>
-              <label class="case"><input type="checkbox" id="case-duet" /> Désactiver les duos</label>
-              <label class="case"><input type="checkbox" id="case-stitch" /> Désactiver les stitchs</label>
-            </div>
+            <p class="texte-attenue" style="margin-top:14px;">
+              💡 En mode brouillon, TikTok ne permet pas encore de préremplir le titre
+              ni la confidentialité depuis l'API — tu les renseigneras toi-même dans l'app.
+            </p>
 
             <button type="submit" class="bouton bouton-or bouton-large" id="btn-publier" disabled>
-              Publier la vidéo
+              Envoyer vers TikTok
             </button>
           </form>
           <p id="erreur-publication" class="erreur cache"></p>

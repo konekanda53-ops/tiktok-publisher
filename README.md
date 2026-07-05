@@ -1,30 +1,52 @@
-# TikTok Publisher — backend de publication automatique
+# TikTok Publisher — envoi de vidéo en brouillon TikTok
 
-Backend Node.js/Express qui gère la connexion OAuth2 d'un compte TikTok et la
-publication automatique de vidéos via la **Content Posting API** officielle.
+Backend Node.js/Express qui gère la connexion OAuth2 d'un compte TikTok et
+l'envoi de vidéos en **brouillon** dans l'app TikTok de l'utilisateur, via la
+**Content Posting API** officielle (scope `video.upload`).
+
+> Mode actuel : **brouillon**. La vidéo est envoyée dans l'app TikTok de
+> l'utilisateur, qui la publie lui-même (choix du titre, de la confidentialité,
+> etc. se fait dans l'app). Pas de vérification de domaine nécessaire.
+> Pour une **publication 100 % automatique** (sans repasser par l'app TikTok),
+> il faudra plus tard : le scope `video.publish`, activer "Direct Post" dans
+> le portail TikTok, et vérifier un domaine. Dis-le si tu veux qu'on bascule
+> dessus.
+
+## Bugs corrigés dans cette version
+
+| Bug | Cause | Correction |
+|---|---|---|
+| `POST /api/generate-script` → 400 | La variable était nommée `API_KEY` sur Render au lieu de `ANTHROPIC_API_KEY` | `server.js` accepte maintenant les deux noms, et un avertissement s'affiche dans les logs si aucune n'est trouvée |
+| `console.log("TEST GITHUB")` en tête de fichier | Oubli de debug | Retiré |
+| Scope `video.publish` demandé mais `video.upload` seul approuvé côté TikTok | Incohérence entre le code et l'app TikTok réellement configurée | Le code utilise maintenant `video.upload` et l'endpoint "brouillon" (`inbox/video/init`), cohérent avec ce qui est approuvé |
+| `/api/publish` envoyait une URL vidéo (`PULL_FROM_URL`) | Nécessite un domaine vérifié, qu'on ne veut pas gérer pour l'instant | Remplacé par un envoi direct du fichier (`FILE_UPLOAD`), aucun domaine à vérifier |
+| `/privacy` et `/terms` dupliquaient un contenu minimal | Pages statiques déjà plus complètes existaient dans `public/` | Ces routes redirigent maintenant vers `politique-confidentialite.html` et `conditions-utilisation.html` |
 
 ## 1. Créer ton app sur TikTok for Developers
 
 1. Va sur https://developers.tiktok.com/apps et crée une app.
-2. Dans les paramètres de l'app, ajoute le **Content Posting API** et active
-   **Direct Post**.
+2. Ajoute le produit **Content Posting API** (pas besoin d'activer "Direct
+   Post" pour le mode brouillon).
 3. Ajoute l'URL de redirection : `http://localhost:3000/auth/tiktok/callback`
-   (à remplacer par ton domaine réel en production).
-4. Demande les scopes `user.info.basic` et `video.publish`.
+   en local, ou `https://ton-app.onrender.com/auth/tiktok/callback` en
+   production.
+4. Scopes à demander : `user.info.basic` et `video.upload`.
 5. Récupère ta **Client Key** et ton **Client Secret**.
-
-⚠️ Si tu veux publier des vidéos via une URL (`PULL_FROM_URL`, ce que fait ce
-backend), TikTok exige aussi que tu **vérifies la propriété du domaine** qui
-héberge tes vidéos, dans la section "Domain Verification" du portail.
 
 ## 2. Installer et configurer
 
 ```bash
 npm install
 cp .env.example .env
-# remplis .env avec ta Client Key, ton Client Secret, etc.
+# remplis .env avec ta Client Key, ton Client Secret, ta clé Anthropic, etc.
 npm start
 ```
+
+⚠️ Sur Render (ou tout autre hébergeur), les noms de variables
+d'environnement doivent être **exactement** :
+`TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,
+`ANTHROPIC_API_KEY`. Un nom différent (ex. `API_KEY` tout court) fait échouer
+silencieusement la fonctionnalité concernée.
 
 ## 3. Structure du site
 
@@ -34,81 +56,51 @@ public/
 ├── conditions-utilisation.html   → CGU (modèle à faire relire par un juriste)
 ├── politique-confidentialite.html→ politique de confidentialité (idem)
 ├── assets/
-│   ├── site.css                  → styles du site vitrine
-│   └── site.js                   → motif "bogolan" (signature visuelle)
+│   ├── site.css
+│   └── site.js
 └── app/
     ├── index.html                → le tableau de bord (l'application)
     ├── style.css
     └── script.js
 ```
 
-- `http://localhost:3000/` → site vitrine (présentation, CGU, confidentialité)
-- `http://localhost:3000/app/` → le studio (connexion, script IA, publication)
+- `http://localhost:3000/` → site vitrine
+- `http://localhost:3000/app/` → le studio (connexion, script IA, envoi vidéo)
+- `http://localhost:3000/privacy` et `/terms` → redirigent vers les pages légales
 
-Le bouton "Ouvrir le studio" sur le site vitrine mène vers `/app/`. Après
-connexion TikTok, tu es redirigé vers `/app/?openId=...`.
+## 4. Connecter un compte TikTok et envoyer une vidéo
 
-⚠️ Les pages CGU et Politique de confidentialité sont des **modèles** avec des
-passages `[à préciser]` : à compléter et faire relire par un juriste avant
-toute mise en ligne réelle, en particulier pour la conformité RGPD et les
-exigences de TikTok sur le traitement des données de compte.
+1. Dans `/app/`, clique sur "Connecter mon compte TikTok".
+2. Une fois autorisé, tu es redirigé vers `/app/?openId=...` (l'`openId` est
+   conservé dans le `localStorage` du navigateur).
+3. Onglet "Publication" : choisis un fichier `.mp4`, clique sur "Envoyer vers
+   TikTok". La vidéo est envoyée en brouillon ; ouvre l'app TikTok pour la
+   publier définitivement.
 
-## 4. Connecter un compte TikTok et utiliser le tableau de bord
+## 5. Pour ton dossier d'audit TikTok
 
-Le bouton "Connecter mon compte TikTok" (dans `/app/`) t'envoie vers
-`/auth/tiktok/start`. Une fois autorisé, tu es redirigé vers le tableau de
-bord avec ton compte connecté (l'`openId` est conservé dans le `localStorage`
-de ton navigateur).
+Le formulaire de review demande une vidéo de démo montrant le flux complet :
+connexion → génération de script IA → envoi de la vidéo → confirmation dans
+l'app TikTok. Assure-toi que :
+- seuls les scopes réellement utilisés (`user.info.basic`, `video.upload`)
+  sont cochés dans le formulaire ;
+- l'URL "Terms of Service" pointe vers `https://ton-domaine/terms` (ou
+  `/conditions-utilisation.html`) et "Privacy Policy" vers
+  `https://ton-domaine/privacy` (ou `/politique-confidentialite.html`) ;
+- ces deux URLs sont bien accessibles publiquement (teste-les dans un
+  navigateur en navigation privée) avant de soumettre.
 
-## 5. Publier une vidéo (en ligne de commande, optionnel)
-
-Tu peux aussi publier directement en `curl`, sans passer par la page web :
-
-```bash
-curl -X POST http://localhost:3000/api/publish \
-  -H "Content-Type: application/json" \
-  -d '{
-    "openId": "TON_OPEN_ID",
-    "videoUrl": "https://ton-domaine-verifie.com/videos/mansa-moussa.mp4",
-    "titre": "Le roi le plus riche de l'\''histoire 😳 #histoire #afrique",
-    "privacyLevel": "SELF_ONLY"
-  }'
-```
-
-Puis suis le statut :
-
-```bash
-curl "http://localhost:3000/api/publish/status?openId=TON_OPEN_ID&publishId=ID_RENVOYE"
-```
-
-## 5. Ce que tu dois savoir avant de viser la production
-
-| Contrainte | Détail |
-|---|---|
-| **Audit obligatoire** | Tant qu'il n'est pas passé, toute vidéo publiée est en `SELF_ONLY` (visible que par toi). Le dossier d'audit prend 2 à 6 semaines. |
-| **Limite avant audit** | 5 comptes autorisés max par tranche de 24h. |
-| **Quota après audit** | ~15 à 25 vidéos/jour/compte. |
-| **Domaine vérifié** | Obligatoire pour publier via URL. |
-| **UX imposée par TikTok** | Avant de publier, ton app doit afficher le pseudo/avatar du créateur, proposer les bonnes options de confidentialité, et obtenir un consentement explicite — c'est déjà géré par `creator-info` et par le flux ci-dessus, mais l'interface finale devra l'afficher visuellement avant de publier. |
-| **Pas de marque déposée sur le contenu** | TikTok interdit les watermarks/logos promotionnels ajoutés automatiquement. |
-
-## 6. Pour préparer ton dossier d'audit
-
-TikTok demandera une démo fonctionnelle de bout en bout. Le plus rapide :
-1. Connecte ton propre compte TikTok ici en local.
-2. Publie 2-3 vidéos de test en `SELF_ONLY`.
-3. Fais une courte vidéo/captures d'écran montrant le flux complet (connexion
-   → génération de contenu → publication → confirmation).
-4. Soumets l'audit depuis le portail développeur avec cette démo.
+Si le formulaire TikTok affiche encore des erreurs (comme "This form has 3
+errors"), ce sont généralement des champs obligatoires manquants : icône
+d'app (1024×1024px), catégorie, ou URL non vérifiée. Envoie-moi le détail des
+3 erreurs affichées si tu veux de l'aide précise dessus.
 
 ## Prochaines briques à connecter
 
-- ✅ Génération de script IA (déjà branchée, onglet "Script IA")
-- Remplacer le stockage en mémoire (`Map`) par une vraie base de données
-  (PostgreSQL/MongoDB) pour ne pas perdre les comptes connectés au redémarrage.
-- Voix IA : brancher un service de synthèse vocale (ElevenLabs, OpenAI TTS) sur
-  le champ `script` généré, via une nouvelle route serveur.
-- Vidéo : pipeline de montage (TTS + images + ffmpeg) qui produit le fichier
-  final à héberger sur ton domaine vérifié avant publication.
-- Statistiques : nécessite le scope `video.list` / `research.data.basic` de
-  l'API TikTok, soumis au même processus d'audit que la publication.
+- ✅ Génération de script IA
+- ✅ Envoi de vidéo en brouillon TikTok (sans domaine à vérifier)
+- Remplacer le stockage en mémoire (`Map`) par une vraie base de données,
+  pour ne pas perdre les comptes connectés à chaque redéploiement Render.
+- Publication 100 % automatique (scope `video.publish` + Direct Post +
+  domaine vérifié) — à activer quand tu es prêt.
+- Voix IA, génération vidéo, statistiques — inchangé, voir le tableau de bord.

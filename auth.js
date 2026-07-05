@@ -19,9 +19,13 @@ export function genererState() {
 export function construireUrlAutorisation({ clientKey, redirectUri, state, codeChallenge }) {
   const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
   url.searchParams.set("client_key", clientKey);
-  // Scopes nécessaires : info de base + publication directe.
-  // "video.publish" doit être explicitement approuvé pour ton app dans le portail développeur.
-  url.searchParams.set("scope", "user.info.basic");
+  // Scopes nécessaires : info de base + envoi de vidéo en brouillon TikTok.
+  // "video.upload" correspond au mode "brouillon" : la vidéo atterrit dans
+  // l'app TikTok de l'utilisateur, qui la publie lui-même. Pas de vérification
+  // de domaine requise. Pour une publication 100% automatique plus tard, il
+  // faudra le scope "video.publish" + activer "Direct Post" + vérifier un
+  // domaine dans le portail TikTok.
+  url.searchParams.set("scope", "user.info.basic,video.upload");
   url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);

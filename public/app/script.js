@@ -86,20 +86,31 @@ async function chargerInfosCreateur() {
     const data = await reponse.json();
     if (!reponse.ok) throw new Error(data.erreur || "Impossible de récupérer le compte.");
 
-    elAvatar.src = data.creator_avatar_url || "";
-    elNomCreateur.textContent = data.creator_nickname || "Créateur";
-    elPseudoCreateur.textContent = "@" + (data.creator_username || "inconnu");
-    elInfoLimiteVideo.textContent = `Durée max. autorisée : ${data.max_video_post_duration_sec || "?"} s`;
+    if (data.degrade) {
+      // Le profil détaillé n'est pas accessible avec le scope actuel, mais le
+      // compte est bien connecté : on reste sur un affichage minimal plutôt
+      // que d'afficher une erreur bloquante.
+      elAvatar.src = "";
+      elNomCreateur.textContent = "Compte connecté";
+      elPseudoCreateur.textContent = "Profil détaillé indisponible";
+      elInfoLimiteVideo.textContent = "";
+    } else {
+      elAvatar.src = data.creator_avatar_url || "";
+      elNomCreateur.textContent = data.creator_nickname || "Créateur";
+      elPseudoCreateur.textContent = "@" + (data.creator_username || "inconnu");
+      elInfoLimiteVideo.textContent = data.max_video_post_duration_sec
+        ? `Durée max. autorisée : ${data.max_video_post_duration_sec} s`
+        : "";
+    }
 
     elEtatNonConnecte.classList.add("cache");
     elEtatConnecte.classList.remove("cache");
-
-    remplirOptionsConfidentialite(data.privacy_level_options || []);
     elBtnPublier.disabled = false;
 
     elPointStatut.classList.add("connecte");
-    elTexteStatutSidebar.textContent = "@" + (data.creator_username || "connecté");
-    elResumeCompte.textContent = "@" + (data.creator_username || "connecté");
+    const libelle = data.creator_username ? "@" + data.creator_username : "Connecté";
+    elTexteStatutSidebar.textContent = libelle;
+    elResumeCompte.textContent = libelle;
   } catch (e) {
     localStorage.removeItem(CLE_STOCKAGE);
     elEtatNonConnecte.classList.remove("cache");
@@ -113,25 +124,8 @@ async function chargerInfosCreateur() {
   }
 }
 
-function remplirOptionsConfidentialite(options) {
-  elChampConfidentialite.innerHTML = "";
-  const libelles = {
-    PUBLIC_TO_EVERYONE: "Public",
-    MUTUAL_FOLLOW_FRIENDS: "Amis (abonnements mutuels)",
-    SELF_ONLY: "Privé (visible par toi uniquement)",
-  };
-  options.forEach((valeur) => {
-    const option = document.createElement("option");
-    option.value = valeur;
-    option.textContent = libelles[valeur] || valeur;
-    elChampConfidentialite.appendChild(option);
-  });
-  if (options.length === 0) {
-    const option = document.createElement("option");
-    option.textContent = "Aucune option disponible";
-    elChampConfidentialite.appendChild(option);
-  }
-}
+// (Le mode brouillon TikTok ne permet pas de choisir la confidentialité
+// depuis l'API : cette option se règle directement dans l'app TikTok.)
 
 // =========================================================
 // Script IA
@@ -235,13 +229,9 @@ function escapeHtml(texte) {
 // Publication
 // =========================================================
 const elFormulaire = document.getElementById("formulaire-publication");
-const elChampUrl = document.getElementById("champ-url");
+const elChampFichier = document.getElementById("champ-fichier");
 const elChampTitre = document.getElementById("champ-titre");
 const elCompteurTitre = document.getElementById("compteur-titre");
-const elChampConfidentialite = document.getElementById("champ-confidentialite");
-const elCaseCommentaire = document.getElementById("case-commentaire");
-const elCaseDuet = document.getElementById("case-duet");
-const elCaseStitch = document.getElementById("case-stitch");
 const elBtnPublier = document.getElementById("btn-publier");
 const elErreurPublication = document.getElementById("erreur-publication");
 const elListePublications = document.getElementById("liste-publications");
@@ -256,30 +246,33 @@ elChampTitre.addEventListener("input", () => {
 elFormulaire.addEventListener("submit", async (evenement) => {
   evenement.preventDefault();
   elErreurPublication.classList.add("cache");
+
+  const fichier = elChampFichier.files[0];
+  if (!fichier) {
+    elErreurPublication.textContent = "Choisis d'abord un fichier vidéo.";
+    elErreurPublication.classList.remove("cache");
+    return;
+  }
+
   elBtnPublier.disabled = true;
-  elBtnPublier.textContent = "Publication en cours…";
+  elBtnPublier.textContent = "Envoi en cours…";
 
   const openId = obtenirOpenId();
-  const corps = {
-    openId,
-    videoUrl: elChampUrl.value.trim(),
-    titre: elChampTitre.value.trim(),
-    privacyLevel: elChampConfidentialite.value,
-    desactiverCommentaire: elCaseCommentaire.checked,
-    desactiverDuet: elCaseDuet.checked,
-    desactiverStitch: elCaseStitch.checked,
-  };
+  const formData = new FormData();
+  formData.append("openId", openId);
+  formData.append("video", fichier);
+
+  const titrePourAffichage = elChampTitre.value.trim() || fichier.name;
 
   try {
     const reponse = await fetch(`${API_BASE}/api/publish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corps),
+      body: formData, // pas de Content-Type manuel : le navigateur fixe la boundary multipart
     });
     const data = await reponse.json();
-    if (!reponse.ok) throw new Error(data.erreur || "Échec de la publication.");
+    if (!reponse.ok) throw new Error(data.erreur || "Échec de l'envoi.");
 
-    ajouterPublicationASuivre({ publishId: data.publishId, titre: corps.titre, openId });
+    ajouterPublicationASuivre({ publishId: data.publishId, titre: titrePourAffichage, openId });
     compteurPublications += 1;
     elResumePublications.textContent = String(compteurPublications);
 
@@ -290,7 +283,7 @@ elFormulaire.addEventListener("submit", async (evenement) => {
     elErreurPublication.classList.remove("cache");
   } finally {
     elBtnPublier.disabled = false;
-    elBtnPublier.textContent = "Publier la vidéo";
+    elBtnPublier.textContent = "Envoyer vers TikTok";
   }
 });
 
@@ -323,8 +316,9 @@ function ajouterPublicationASuivre({ publishId, titre, openId }) {
       elMeta.textContent = `Statut : ${statut}`;
 
       if (statut === "PUBLISH_COMPLETE") {
-        elBadge.textContent = "Publiée";
+        elBadge.textContent = "Envoyée";
         elBadge.className = "badge badge-succes";
+        elMeta.textContent = "Vidéo envoyée dans ton app TikTok. Ouvre TikTok pour la publier.";
         clearInterval(intervalle);
       } else if (statut === "FAILED") {
         elBadge.textContent = "Échec";

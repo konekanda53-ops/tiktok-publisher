@@ -1,6 +1,6 @@
-console.log("TEST GITHUB");
 import "dotenv/config";
 import express from "express";
+import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
@@ -12,7 +12,8 @@ import {
 } from "./auth.js";
 import {
   recupererInfosCreateur,
-  publierVideoDepuisUrl,
+  initierBrouillonParFichier,
+  envoyerFichierVersTikTok,
   verifierStatutPublication,
 } from "./publish.js";
 import { genererContenuIA } from "./ia.js";
@@ -23,15 +24,34 @@ app.use(express.json());
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Upload en mémoire (pas d'écriture sur disque) : suffisant pour des vidéos
+// courtes de type TikTok. Limite fixée à 150 Mo.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 150 * 1024 * 1024 },
+});
+
 // --- Stockage temporaire en mémoire (à remplacer par une vraie base de
 // données / un vault de secrets avant toute mise en production) ---
 const sessionsPKCE = new Map(); // state -> { verifier }
 const comptes = new Map(); // open_id -> { accessToken, refreshToken, expiresAt }
 
-const { TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_REDIRECT_URI, ANTHROPIC_API_KEY, PORT = 3000 } = process.env;
+const {
+  TIKTOK_CLIENT_KEY,
+  TIKTOK_CLIENT_SECRET,
+  TIKTOK_REDIRECT_URI,
+  PORT = 3000,
+} = process.env;
+
+// Accepte ANTHROPIC_API_KEY (nom recommandé) ou API_KEY (au cas où la
+// variable a été créée sous ce nom, par exemple sur Render).
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.API_KEY;
 
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
   console.warn("⚠️  TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants : copie .env.example en .env et remplis-le.");
+}
+if (!ANTHROPIC_API_KEY) {
+  console.warn("⚠️  Clé API Anthropic manquante : ajoute ANTHROPIC_API_KEY (ou API_KEY) dans tes variables d'environnement.");
 }
 
 // 1) L'utilisateur clique sur "Connecter mon compte TikTok"
@@ -104,57 +124,53 @@ async function obtenirTokenValide(openId) {
   return compte.accessToken;
 }
 
-// 3) Infos du créateur (à appeler juste avant chaque publication)
+// 3) Infos du créateur, pour affichage (pseudo, avatar...).
+// Tolérant aux échecs : le scope "video.upload" seul ne garantit pas
+// forcément l'accès à toutes les infos ; on dégrade proprement plutôt que
+// de casser l'interface.
 app.get("/api/creator-info", async (req, res) => {
   try {
     const accessToken = await obtenirTokenValide(req.query.openId);
-    const infos = await recupererInfosCreateur(accessToken);
-    res.json(infos);
+    try {
+      const infos = await recupererInfosCreateur(accessToken);
+      res.json({ ...infos, degrade: false });
+    } catch (e) {
+      res.json({ degrade: true, erreur: e.message });
+    }
   } catch (e) {
     res.status(400).json({ erreur: e.message });
   }
 });
 
-// 4) Publier une vidéo
-// Body attendu : { openId, videoUrl, titre, privacyLevel }
-// videoUrl doit être hébergée sur un domaine VÉRIFIÉ dans le portail TikTok.
-app.post("/api/publish", async (req, res) => {
-  const {
-    openId,
-    videoUrl,
-    titre,
-    privacyLevel,
-    desactiverCommentaire,
-    desactiverDuet,
-    desactiverStitch,
-  } = req.body;
-  try {
-    const accessToken = await obtenirTokenValide(openId);
+// 4) Envoyer une vidéo vers TikTok en brouillon (multipart/form-data : champ
+// "video" + champ "openId"). L'utilisateur finalise la publication depuis
+// l'app TikTok — aucun domaine à vérifier, aucun niveau de confidentialité
+// à choisir ici.
+app.post("/api/publish", upload.single("video"), async (req, res) => {
+  const { openId } = req.body;
+  const fichier = req.file;
 
-    // Vérification obligatoire des options autorisées avant de publier
-    const infos = await recupererInfosCreateur(accessToken);
-    const niveau = privacyLevel || infos.privacy_level_options[0];
-    if (!infos.privacy_level_options.includes(niveau)) {
-      return res.status(400).json({ erreur: `privacyLevel invalide. Options autorisées : ${infos.privacy_level_options.join(", ")}` });
+  try {
+    if (!fichier) {
+      return res.status(400).json({ erreur: "Aucun fichier vidéo reçu." });
     }
 
-    const { publish_id } = await publierVideoDepuisUrl({
+    const accessToken = await obtenirTokenValide(openId);
+
+    const { publish_id, upload_url } = await initierBrouillonParFichier({
       accessToken,
-      videoUrl,
-      titre,
-      privacyLevel: niveau,
-      desactiverCommentaire: Boolean(desactiverCommentaire),
-      desactiverDuet: Boolean(desactiverDuet),
-      desactiverStitch: Boolean(desactiverStitch),
+      tailleOctets: fichier.buffer.length,
     });
 
-    res.json({ publishId: publish_id, niveauConfidentialite: niveau });
+    await envoyerFichierVersTikTok({ uploadUrl: upload_url, buffer: fichier.buffer });
+
+    res.json({ publishId: publish_id });
   } catch (e) {
     res.status(400).json({ erreur: e.message });
   }
 });
 
-// 5) Suivre le statut d'une publication en cours
+// 5) Suivre le statut d'un envoi en cours
 app.get("/api/publish/status", async (req, res) => {
   const { openId, publishId } = req.query;
   try {
@@ -183,19 +199,18 @@ app.post("/api/generate-script", async (req, res) => {
   }
 });
 
-app.get("/privacy", (req, res) => {
-  res.send(`
-    <h1>Privacy Policy</h1>
-    <p>TikTok IA Studio only accesses the permissions granted by the user through TikTok Login Kit. We do not sell or share personal data.</p>
-  `);
+// Redirections courtes vers les vraies pages légales (public/*.html)
+app.get("/privacy", (req, res) => res.redirect("/politique-confidentialite.html"));
+app.get("/terms", (req, res) => res.redirect("/conditions-utilisation.html"));
+
+// Filet de sécurité pour les erreurs multer (fichier trop gros, etc.)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ erreur: `Erreur d'envoi de fichier : ${err.message}` });
+  }
+  next(err);
 });
 
-app.get("/terms", (req, res) => {
-  res.send(`
-    <h1>Terms of Service</h1>
-    <p>By using TikTok IA Studio, you agree to use the application in accordance with TikTok's Terms of Service.</p>
-  `);
-});
 app.listen(PORT, () => {
   console.log(`✅ Serveur prêt sur http://localhost:${PORT}`);
   console.log(`   Connecte un compte TikTok ici : http://localhost:${PORT}/auth/tiktok/start`);

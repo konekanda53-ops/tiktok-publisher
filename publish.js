@@ -1,7 +1,7 @@
 const API_BASE = "https://open.tiktokapis.com/v2";
 
-// Étape obligatoire avant CHAQUE publication : TikTok exige de connaître
-// les options de confidentialité actuelles du créateur (elles peuvent changer).
+// Infos du créateur connecté (pseudo, avatar...). Utilisé pour affichage,
+// pas indispensable en mode brouillon (pas de privacy_level à choisir).
 export async function recupererInfosCreateur(accessToken) {
   const reponse = await fetch(`${API_BASE}/post/publish/creator_info/query/`, {
     method: "POST",
@@ -13,44 +13,47 @@ export async function recupererInfosCreateur(accessToken) {
   const data = await reponse.json();
   if (data.error?.code !== "ok") throw new Error(data.error?.message || "Erreur creator_info");
   return data.data;
-  // data.data contient : creator_username, creator_nickname, privacy_level_options,
-  // comment_disabled, duet_disabled, stitch_disabled, max_video_post_duration_sec
 }
 
-// Lance une publication directe à partir d'une URL de vidéo hébergée sur un
-// domaine que tu as VÉRIFIÉ dans le portail développeur TikTok.
-export async function publierVideoDepuisUrl({
-  accessToken,
-  videoUrl,
-  titre,
-  privacyLevel, // doit faire partie de privacy_level_options renvoyé par creator_info
-  desactiverCommentaire = false,
-  desactiverDuet = false,
-  desactiverStitch = false,
-}) {
-  const reponse = await fetch(`${API_BASE}/post/publish/video/init/`, {
+// Étape 1 : ouvre un envoi de brouillon TikTok (scope "video.upload").
+// La vidéo est envoyée en octets directement à TikTok (FILE_UPLOAD), donc
+// aucune vérification de domaine n'est nécessaire (contrairement à PULL_FROM_URL).
+// TikTok répond avec une "upload_url" à laquelle envoyer le fichier.
+export async function initierBrouillonParFichier({ accessToken, tailleOctets }) {
+  const reponse = await fetch(`${API_BASE}/post/publish/inbox/video/init/`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json; charset=UTF-8",
     },
     body: JSON.stringify({
-      post_info: {
-        title: titre,
-        privacy_level: privacyLevel,
-        disable_comment: desactiverCommentaire,
-        disable_duet: desactiverDuet,
-        disable_stitch: desactiverStitch,
-      },
       source_info: {
-        source: "PULL_FROM_URL",
-        video_url: videoUrl,
+        source: "FILE_UPLOAD",
+        video_size: tailleOctets,
+        chunk_size: tailleOctets,
+        total_chunk_count: 1,
       },
     }),
   });
   const data = await reponse.json();
-  if (data.error?.code !== "ok") throw new Error(data.error?.message || "Erreur publish/video/init");
-  return data.data; // { publish_id }
+  if (data.error?.code !== "ok") throw new Error(data.error?.message || "Erreur inbox/video/init");
+  return data.data; // { publish_id, upload_url }
+}
+
+// Étape 2 : envoie les octets de la vidéo à l'URL fournie par TikTok.
+export async function envoyerFichierVersTikTok({ uploadUrl, buffer }) {
+  const reponse = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "video/mp4",
+      "Content-Range": `bytes 0-${buffer.length - 1}/${buffer.length}`,
+    },
+    body: buffer,
+  });
+  if (!reponse.ok) {
+    const texte = await reponse.text().catch(() => "");
+    throw new Error(`Échec de l'envoi du fichier vidéo (${reponse.status}) ${texte}`);
+  }
 }
 
 // À appeler en polling (toutes les 2-3s) jusqu'à PUBLISH_COMPLETE ou FAILED.
@@ -65,5 +68,5 @@ export async function verifierStatutPublication({ accessToken, publishId }) {
   });
   const data = await reponse.json();
   if (data.error?.code !== "ok") throw new Error(data.error?.message || "Erreur status/fetch");
-  return data.data; // { status, publicaly_available_post_id, fail_reason, ... }
+  return data.data; // { status, fail_reason, ... }
 }
