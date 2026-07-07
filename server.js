@@ -51,8 +51,8 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
   console.warn("⚠️  TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants : copie .env.example en .env et remplis-le.");
 }
-if (!ANTHROPIC_API_KEY) {
-  console.warn("⚠️  Clé API Anthropic manquante : ajoute ANTHROPIC_API_KEY (ou API_KEY) dans tes variables d'environnement.");
+if (!GEMINI_API_KEY) {
+  console.warn("⚠️ GEMINI_API_KEY manquante : ajoute-la dans les variables d'environnement Render.");
 }
 
 // 1) L'utilisateur clique sur "Connecter mon compte TikTok"
