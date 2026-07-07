@@ -40,12 +40,13 @@ const {
   TIKTOK_CLIENT_KEY,
   TIKTOK_CLIENT_SECRET,
   TIKTOK_REDIRECT_URI,
-  PORT = 3000,
+  GEMINI_API_KEY,
+  PORT = 3000
 } = process.env;
 
 // Accepte ANTHROPIC_API_KEY (nom recommandé) ou API_KEY (au cas où la
 // variable a été créée sous ce nom, par exemple sur Render).
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.API_KEY;
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
   console.warn("⚠️  TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants : copie .env.example en .env et remplis-le.");
@@ -187,7 +188,7 @@ app.post("/api/generate-script", async (req, res) => {
   const { categorie, sujet, duree, langue } = req.body;
   try {
     const contenu = await genererContenuIA({
-      apiKey: ANTHROPIC_API_KEY,
+      apiKey: GEMINI_KEY,
       categorie,
       sujet,
       duree,
