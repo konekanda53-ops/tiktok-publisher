@@ -60,9 +60,9 @@
           <ol class="parcours">
             <li data-cible="connexion">🔐 Connecte ton compte TikTok</li>
             <li data-cible="script">✍️ Génère une idée et un script avec l'IA</li>
-            <li data-cible="voix">🎙️ Ajoute une voix (bientôt disponible)</li>
-            <li data-cible="video">🎬 Assemble la vidéo (bientôt disponible)</li>
-            <li data-cible="publication">📤 Publie sur TikTok</li>
+            <li data-cible="voix">🎙️ Écoute un aperçu de la voix</li>
+            <li data-cible="video">🎬 Génère la vidéo automatiquement</li>
+            <li data-cible="publication">📤 Envoie vers TikTok</li>
             <li data-cible="stats">📊 Suis tes statistiques (bientôt disponible)</li>
           </ol>
         </div>
@@ -143,16 +143,13 @@
       <section class="section" id="section-voix">
         <header class="entete-section">
           <h1>Voix IA</h1>
-          <p class="texte-attenue">Transforme le script en narration audio.</p>
+          <p class="texte-attenue">Transforme le script généré en narration audio (voix Gemini).</p>
         </header>
-        <div class="card carte-bientot">
-          <p class="badge-bientot">Bientôt disponible</p>
-          <p class="texte-attenue">
-            Cette étape nécessite de brancher un service de synthèse vocale
-            (ElevenLabs, OpenAI TTS…) avec ta propre clé API, puis d'ajouter
-            une route serveur qui transforme le champ <code>script</code> généré
-            ci-contre en fichier audio.
-          </p>
+        <div class="card">
+          <p class="texte-attenue" id="voix-source-info">Génère d'abord un script dans l'onglet "Script IA".</p>
+          <button id="btn-generer-voix" class="bouton bouton-or bouton-large" disabled>Générer la voix</button>
+          <p id="erreur-voix" class="erreur cache"></p>
+          <audio id="lecteur-voix" controls class="cache" style="width:100%;margin-top:14px;"></audio>
         </div>
       </section>
 
@@ -160,15 +157,17 @@
       <section class="section" id="section-video">
         <header class="entete-section">
           <h1>Création vidéo</h1>
-          <p class="texte-attenue">Assemble images, voix, sous-titres et musique.</p>
+          <p class="texte-attenue">Assemble automatiquement voix et images générées par l'IA à partir du script.</p>
         </header>
-        <div class="card carte-bientot">
-          <p class="badge-bientot">Bientôt disponible</p>
-          <p class="texte-attenue">
-            Cette étape nécessite un générateur d'images, la voix générée à
-            l'étape précédente, et un pipeline serveur (ffmpeg) qui assemble le
-            tout en un fichier vidéo hébergé sur ton domaine vérifié TikTok.
-          </p>
+        <div class="card">
+          <p class="texte-attenue" id="video-source-info">Génère d'abord un script dans l'onglet "Script IA".</p>
+          <button id="btn-generer-video" class="bouton bouton-or bouton-large" disabled>Générer la vidéo (voix + images)</button>
+          <p class="texte-attenue" style="margin-top:10px;">⏱️ Compte 30 secondes à 2 minutes selon la longueur du script.</p>
+          <p id="erreur-video" class="erreur cache"></p>
+          <video id="lecteur-video" controls class="cache" style="width:100%;margin-top:14px;border-radius:10px;"></video>
+          <button id="btn-envoyer-video-tiktok" class="bouton bouton-or bouton-large cache" style="margin-top:14px;">
+            Envoyer cette vidéo vers TikTok
+          </button>
         </div>
       </section>
 

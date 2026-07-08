@@ -184,7 +184,11 @@ elBtnGenererScript.addEventListener("click", async () => {
   }
 });
 
+let dernierResultatScript = null;
+
 function afficherResultatScript(data) {
+  dernierResultatScript = data;
+
   const hashtagsHtml = (data.hashtags || []).map((h) => `<span class="hashtag">#${h}</span>`).join("");
   elCarteResultatScript.innerHTML = `
     <div class="bloc-resultat">
@@ -217,6 +221,17 @@ function afficherResultatScript(data) {
     elCompteurTitre.textContent = `${elChampTitre.value.length} / 2200`;
     afficherSection("publication");
   });
+
+  const resume = `Script prêt : "${data.titre || data.idee}"`;
+  const elVoixInfo = document.getElementById("voix-source-info");
+  const elBtnVoix = document.getElementById("btn-generer-voix");
+  if (elVoixInfo) elVoixInfo.textContent = resume;
+  if (elBtnVoix) elBtnVoix.disabled = false;
+
+  const elVideoInfo = document.getElementById("video-source-info");
+  const elBtnVideoGen = document.getElementById("btn-generer-video");
+  if (elVideoInfo) elVideoInfo.textContent = resume;
+  if (elBtnVideoGen) elBtnVideoGen.disabled = false;
 }
 
 function escapeHtml(texte) {
@@ -224,6 +239,116 @@ function escapeHtml(texte) {
   div.textContent = texte;
   return div.innerHTML;
 }
+
+// =========================================================
+// Voix IA
+// =========================================================
+const elBtnGenererVoix = document.getElementById("btn-generer-voix");
+const elErreurVoix = document.getElementById("erreur-voix");
+const elLecteurVoix = document.getElementById("lecteur-voix");
+
+elBtnGenererVoix?.addEventListener("click", async () => {
+  if (!dernierResultatScript) return;
+  elErreurVoix.classList.add("cache");
+  elBtnGenererVoix.disabled = true;
+  elBtnGenererVoix.textContent = "Génération de la voix…";
+
+  try {
+    const reponse = await fetch(`${API_BASE}/api/generate-voice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texte: dernierResultatScript.script }),
+    });
+    if (!reponse.ok) {
+      const data = await reponse.json().catch(() => ({}));
+      throw new Error(data.erreur || "Échec de la génération de la voix.");
+    }
+    const blob = await reponse.blob();
+    elLecteurVoix.src = URL.createObjectURL(blob);
+    elLecteurVoix.classList.remove("cache");
+  } catch (e) {
+    elErreurVoix.textContent = e.message;
+    elErreurVoix.classList.remove("cache");
+  } finally {
+    elBtnGenererVoix.disabled = false;
+    elBtnGenererVoix.textContent = "Générer la voix";
+  }
+});
+
+// =========================================================
+// Génération vidéo automatique (script → voix → images → ffmpeg)
+// =========================================================
+const elBtnGenererVideo = document.getElementById("btn-generer-video");
+const elErreurVideo = document.getElementById("erreur-video");
+const elLecteurVideo = document.getElementById("lecteur-video");
+const elBtnEnvoyerVideoTikTok = document.getElementById("btn-envoyer-video-tiktok");
+let dernierVideoId = null;
+
+elBtnGenererVideo?.addEventListener("click", async () => {
+  if (!dernierResultatScript) return;
+  elErreurVideo.classList.add("cache");
+  elBtnEnvoyerVideoTikTok.classList.add("cache");
+  elBtnGenererVideo.disabled = true;
+  elBtnGenererVideo.textContent = "Génération en cours… (peut prendre 1 à 2 min)";
+
+  try {
+    const reponse = await fetch(`${API_BASE}/api/create-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idee: dernierResultatScript.idee,
+        script: dernierResultatScript.script,
+      }),
+    });
+    const data = await reponse.json();
+    if (!reponse.ok) throw new Error(data.erreur || "Échec de la génération vidéo.");
+
+    dernierVideoId = data.videoId;
+    elLecteurVideo.src = `${API_BASE}/api/video/${data.videoId}`;
+    elLecteurVideo.classList.remove("cache");
+    elBtnEnvoyerVideoTikTok.classList.remove("cache");
+  } catch (e) {
+    elErreurVideo.textContent = e.message;
+    elErreurVideo.classList.remove("cache");
+  } finally {
+    elBtnGenererVideo.disabled = false;
+    elBtnGenererVideo.textContent = "Générer la vidéo (voix + images)";
+  }
+});
+
+elBtnEnvoyerVideoTikTok?.addEventListener("click", async () => {
+  if (!dernierVideoId) return;
+  elErreurVideo.classList.add("cache");
+  elBtnEnvoyerVideoTikTok.disabled = true;
+  elBtnEnvoyerVideoTikTok.textContent = "Envoi en cours…";
+
+  try {
+    const openId = obtenirOpenId();
+    const formData = new FormData();
+    formData.append("openId", openId);
+    formData.append("videoId", dernierVideoId);
+
+    const reponse = await fetch(`${API_BASE}/api/publish`, { method: "POST", body: formData });
+    const data = await reponse.json();
+    if (!reponse.ok) throw new Error(data.erreur || "Échec de l'envoi.");
+
+    ajouterPublicationASuivre({
+      publishId: data.publishId,
+      titre: dernierResultatScript?.titre || "Vidéo générée par l'IA",
+      openId,
+    });
+    compteurPublications += 1;
+    elResumePublications.textContent = String(compteurPublications);
+
+    afficherSection("publication");
+  } catch (e) {
+    elErreurVideo.textContent = e.message;
+    elErreurVideo.classList.remove("cache");
+  } finally {
+    elBtnEnvoyerVideoTikTok.disabled = false;
+    elBtnEnvoyerVideoTikTok.textContent = "Envoyer cette vidéo vers TikTok";
+  }
+});
 
 // =========================================================
 // Publication

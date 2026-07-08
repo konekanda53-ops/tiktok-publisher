@@ -3,6 +3,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
+import { nanoid } from "nanoid";
 import {
   genererPKCE,
   genererState,
@@ -17,6 +18,9 @@ import {
   verifierStatutPublication,
 } from "./publish.js";
 import { genererContenuIA } from "./ia.js";
+import { genererVoix, envelopperEnWav } from "./voice.js";
+import { genererImagesPourScript } from "./image.js";
+import { assemblerVideo } from "./video.js";
 
 const app = express();
 app.use(express.json());
@@ -36,23 +40,31 @@ const upload = multer({
 const sessionsPKCE = new Map(); // state -> { verifier }
 const comptes = new Map(); // open_id -> { accessToken, refreshToken, expiresAt }
 
+// Vidéos générées automatiquement, en attente d'être envoyées vers TikTok ou
+// prévisualisées. Purgées après 20 minutes pour ne pas saturer la mémoire du
+// serveur (important sur un hébergeur à mémoire limitée comme Render free).
+const videosGenerees = new Map(); // videoId -> { buffer, creeLe }
+const DUREE_DE_VIE_VIDEO_MS = 20 * 60 * 1000;
+setInterval(() => {
+  const maintenant = Date.now();
+  for (const [id, entree] of videosGenerees) {
+    if (maintenant - entree.creeLe > DUREE_DE_VIE_VIDEO_MS) videosGenerees.delete(id);
+  }
+}, 5 * 60 * 1000);
+
 const {
   TIKTOK_CLIENT_KEY,
   TIKTOK_CLIENT_SECRET,
   TIKTOK_REDIRECT_URI,
   GEMINI_API_KEY,
-  PORT = 3000
+  PORT = 3000,
 } = process.env;
-
-// Accepte ANTHROPIC_API_KEY (nom recommandé) ou API_KEY (au cas où la
-// variable a été créée sous ce nom, par exemple sur Render).
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
   console.warn("⚠️  TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants : copie .env.example en .env et remplis-le.");
 }
 if (!GEMINI_API_KEY) {
-  console.warn("⚠️ GEMINI_API_KEY manquante : ajoute-la dans les variables d'environnement Render.");
+  console.warn("⚠️  GEMINI_API_KEY manquante : ajoute-la dans tes variables d'environnement.");
 }
 
 // 1) L'utilisateur clique sur "Connecter mon compte TikTok"
@@ -126,9 +138,6 @@ async function obtenirTokenValide(openId) {
 }
 
 // 3) Infos du créateur, pour affichage (pseudo, avatar...).
-// Tolérant aux échecs : le scope "video.upload" seul ne garantit pas
-// forcément l'accès à toutes les infos ; on dégrade proprement plutôt que
-// de casser l'interface.
 app.get("/api/creator-info", async (req, res) => {
   try {
     const accessToken = await obtenirTokenValide(req.query.openId);
@@ -143,27 +152,33 @@ app.get("/api/creator-info", async (req, res) => {
   }
 });
 
-// 4) Envoyer une vidéo vers TikTok en brouillon (multipart/form-data : champ
-// "video" + champ "openId"). L'utilisateur finalise la publication depuis
-// l'app TikTok — aucun domaine à vérifier, aucun niveau de confidentialité
-// à choisir ici.
+// 4) Envoyer une vidéo vers TikTok en brouillon.
+// Deux sources possibles :
+//  - un fichier uploadé manuellement (multipart, champ "video") ;
+//  - une vidéo déjà générée par l'IA (champ "videoId", voir /api/create-video).
 app.post("/api/publish", upload.single("video"), async (req, res) => {
-  const { openId } = req.body;
-  const fichier = req.file;
+  const { openId, videoId } = req.body;
 
   try {
-    if (!fichier) {
-      return res.status(400).json({ erreur: "Aucun fichier vidéo reçu." });
+    let buffer;
+    if (req.file) {
+      buffer = req.file.buffer;
+    } else if (videoId) {
+      const entree = videosGenerees.get(videoId);
+      if (!entree) return res.status(400).json({ erreur: "Vidéo introuvable ou expirée, régénère-la." });
+      buffer = entree.buffer;
+    } else {
+      return res.status(400).json({ erreur: "Aucun fichier vidéo ni vidéo générée reçue." });
     }
 
     const accessToken = await obtenirTokenValide(openId);
 
     const { publish_id, upload_url } = await initierBrouillonParFichier({
       accessToken,
-      tailleOctets: fichier.buffer.length,
+      tailleOctets: buffer.length,
     });
 
-    await envoyerFichierVersTikTok({ uploadUrl: upload_url, buffer: fichier.buffer });
+    await envoyerFichierVersTikTok({ uploadUrl: upload_url, buffer });
 
     res.json({ publishId: publish_id });
   } catch (e) {
@@ -188,7 +203,7 @@ app.post("/api/generate-script", async (req, res) => {
   const { categorie, sujet, duree, langue } = req.body;
   try {
     const contenu = await genererContenuIA({
-      apiKey: GEMINI_KEY,
+      apiKey: GEMINI_API_KEY,
       categorie,
       sujet,
       duree,
@@ -198,6 +213,56 @@ app.post("/api/generate-script", async (req, res) => {
   } catch (e) {
     res.status(400).json({ erreur: e.message });
   }
+});
+
+// 7) Générer uniquement la voix (aperçu audio) à partir d'un texte.
+// Renvoie un WAV jouable directement dans un <audio> de navigateur.
+app.post("/api/generate-voice", async (req, res) => {
+  const { texte } = req.body;
+  try {
+    const pcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte });
+    const wav = envelopperEnWav(pcm);
+    res.set("Content-Type", "audio/wav");
+    res.send(wav);
+  } catch (e) {
+    res.status(400).json({ erreur: e.message });
+  }
+});
+
+// 8) Pipeline complet : script → voix → images → montage ffmpeg → vidéo.
+// L'utilisateur ne choisit aucun fichier ici : tout est généré. Peut prendre
+// 30 secondes à 2 minutes selon la longueur du script et le nombre d'images.
+app.post("/api/create-video", async (req, res) => {
+  const { idee, script } = req.body;
+  try {
+    if (!script || !script.trim()) {
+      return res.status(400).json({ erreur: "Aucun script fourni. Génère d'abord un script." });
+    }
+
+    const audioPcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte: script });
+    const images = await genererImagesPourScript({
+      apiKey: GEMINI_API_KEY,
+      idee: idee || script.slice(0, 80),
+      script,
+      nombreImages: 4,
+    });
+    const videoBuffer = await assemblerVideo({ images, audioPcm });
+
+    const videoId = nanoid();
+    videosGenerees.set(videoId, { buffer: videoBuffer, creeLe: Date.now() });
+
+    res.json({ videoId });
+  } catch (e) {
+    res.status(500).json({ erreur: e.message });
+  }
+});
+
+// 9) Prévisualiser / télécharger une vidéo générée par l'IA
+app.get("/api/video/:id", (req, res) => {
+  const entree = videosGenerees.get(req.params.id);
+  if (!entree) return res.status(404).json({ erreur: "Vidéo introuvable ou expirée." });
+  res.set("Content-Type", "video/mp4");
+  res.send(entree.buffer);
 });
 
 // Redirections courtes vers les vraies pages légales (public/*.html)
