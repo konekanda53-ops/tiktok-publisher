@@ -241,7 +241,7 @@ app.post("/api/create-video", async (req, res) => {
 
     const audioPcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte: script });
     const images = await genererImagesPourScript({
-      apiKey: GEMINI_API_KEY,
+      apiKey: process.env.PEXELS_API_KEY,
       idee: idee || script.slice(0, 80),
       script,
       nombreImages: 4,
