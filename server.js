@@ -66,6 +66,9 @@ if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
 if (!GEMINI_API_KEY) {
   console.warn("⚠️  GEMINI_API_KEY manquante : ajoute-la dans tes variables d'environnement.");
 }
+if (!process.env.PEXELS_API_KEY) {
+  console.warn("⚠️  PEXELS_API_KEY manquante : la génération d'images échouera. Clé gratuite sur https://www.pexels.com/api");
+}
 
 // 1) L'utilisateur clique sur "Connecter mon compte TikTok"
 app.get("/auth/tiktok/start", (req, res) => {
@@ -233,20 +236,38 @@ app.post("/api/generate-voice", async (req, res) => {
 // L'utilisateur ne choisit aucun fichier ici : tout est généré. Peut prendre
 // 30 secondes à 2 minutes selon la longueur du script et le nombre d'images.
 app.post("/api/create-video", async (req, res) => {
-  const { idee, script } = req.body;
+  const { idee, script, motsClesVisuels } = req.body;
   try {
-    if (!script || !script.trim()) {
+    if (!script || !String(script).trim()) {
       return res.status(400).json({ erreur: "Aucun script fourni. Génère d'abord un script." });
     }
 
-    const audioPcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte: script });
-    const images = await genererImagesPourScript({
-      apiKey: process.env.PEXELS_API_KEY,
-      idee: idee || script.slice(0, 80),
-      script,
-      nombreImages: 4,
-    });
-    const videoBuffer = await assemblerVideo({ images, audioPcm });
+    let audioPcm;
+    try {
+      audioPcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte: script });
+    } catch (e) {
+      throw new Error(`Échec de la génération de la voix : ${e.message}`);
+    }
+
+    let images;
+    try {
+      images = await genererImagesPourScript({
+        apiKey: process.env.PEXELS_API_KEY,
+        idee: idee || script.slice(0, 80),
+        script,
+        motsClesVisuels,
+        nombreImages: 4,
+      });
+    } catch (e) {
+      throw new Error(`Échec de la génération des images : ${e.message}`);
+    }
+
+    let videoBuffer;
+    try {
+      videoBuffer = await assemblerVideo({ images, audioPcm });
+    } catch (e) {
+      throw new Error(`Échec du montage vidéo : ${e.message}`);
+    }
 
     const videoId = nanoid();
     videosGenerees.set(videoId, { buffer: videoBuffer, creeLe: Date.now() });
@@ -264,6 +285,9 @@ app.get("/api/video/:id", (req, res) => {
   res.set("Content-Type", "video/mp4");
   res.send(entree.buffer);
 });
+
+// Évite le bruit de 404 sur /favicon.ico dans les logs et la console
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 
 // Redirections courtes vers les vraies pages légales (public/*.html)
 app.get("/privacy", (req, res) => res.redirect("/politique-confidentialite.html"));

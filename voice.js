@@ -7,10 +7,37 @@ const MODELE_TTS = "gemini-3.1-flash-tts-preview";
 export const FREQUENCE_ECHANTILLONNAGE = 24000;
 const OCTETS_PAR_ECHANTILLON = 2; // 16 bits
 
-export async function genererVoix({ apiKey, texte, voix = "Kore" }) {
-  if (!apiKey) throw new Error("GEMINI_API_KEY manquante");
-  if (!texte || !texte.trim()) throw new Error("Texte vide : rien à transformer en voix.");
+// Au-delà de cette taille, on découpe le texte en plusieurs appels TTS et on
+// concatène les pistes PCM obtenues bout à bout (concaténation valide pour du
+// PCM brut sans en-tête). Ça évite les troncatures ou échecs silencieux sur
+// les scripts longs (ex. "3 min").
+const TAILLE_MAX_PAR_APPEL = 900; // caractères
 
+function normaliserTexte(texte) {
+  if (Array.isArray(texte)) return texte.join(" ");
+  if (typeof texte === "string") return texte;
+  return String(texte ?? "");
+}
+
+function decouperEnBlocs(texte) {
+  const phrases = texte.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const blocs = [];
+  let blocCourant = "";
+
+  for (const phrase of phrases) {
+    if (blocCourant && (blocCourant + " " + phrase).trim().length > TAILLE_MAX_PAR_APPEL) {
+      blocs.push(blocCourant.trim());
+      blocCourant = phrase;
+    } else {
+      blocCourant = (blocCourant + " " + phrase).trim();
+    }
+  }
+  if (blocCourant) blocs.push(blocCourant);
+
+  return blocs.length ? blocs : [texte];
+}
+
+async function genererVoixUnBloc({ apiKey, texte, voix }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELE_TTS}:generateContent?key=${apiKey}`;
 
   const reponse = await fetch(url, {
@@ -31,7 +58,22 @@ export async function genererVoix({ apiKey, texte, voix = "Kore" }) {
   const audioBase64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   if (!audioBase64) throw new Error("Aucun audio renvoyé par le modèle de voix.");
 
-  return Buffer.from(audioBase64, "base64"); // PCM brut
+  return Buffer.from(audioBase64, "base64");
+}
+
+export async function genererVoix({ apiKey, texte, voix = "Kore" }) {
+  if (!apiKey) throw new Error("GEMINI_API_KEY manquante");
+
+  const texteNormalise = normaliserTexte(texte).trim();
+  if (!texteNormalise) throw new Error("Texte vide : rien à transformer en voix.");
+
+  const blocs = decouperEnBlocs(texteNormalise);
+  const morceaux = [];
+  for (const bloc of blocs) {
+    morceaux.push(await genererVoixUnBloc({ apiKey, texte: bloc, voix }));
+  }
+
+  return Buffer.concat(morceaux);
 }
 
 // Ajoute un en-tête WAV (44 octets) à du PCM brut, pour qu'il soit lisible
@@ -45,13 +87,13 @@ export function envelopperEnWav(pcmBuffer, { frequence = FREQUENCE_ECHANTILLONNA
   entete.writeUInt32LE(36 + pcmBuffer.length, 4);
   entete.write("WAVE", 8);
   entete.write("fmt ", 12);
-  entete.writeUInt32LE(16, 16); // taille du sous-bloc fmt
-  entete.writeUInt16LE(1, 20); // format PCM
+  entete.writeUInt32LE(16, 16);
+  entete.writeUInt16LE(1, 20);
   entete.writeUInt16LE(canaux, 22);
   entete.writeUInt32LE(frequence, 24);
   entete.writeUInt32LE(octetsParSeconde, 28);
   entete.writeUInt16LE(octetsParBloc, 32);
-  entete.writeUInt16LE(OCTETS_PAR_ECHANTILLON * 8, 34); // bits par échantillon
+  entete.writeUInt16LE(OCTETS_PAR_ECHANTILLON * 8, 34);
   entete.write("data", 36);
   entete.writeUInt32LE(pcmBuffer.length, 40);
 

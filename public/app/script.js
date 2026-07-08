@@ -298,6 +298,7 @@ elBtnGenererVideo?.addEventListener("click", async () => {
       body: JSON.stringify({
         idee: dernierResultatScript.idee,
         script: dernierResultatScript.script,
+        motsClesVisuels: dernierResultatScript.visual_keywords,
       }),
     });
     const data = await reponse.json();
@@ -318,12 +319,19 @@ elBtnGenererVideo?.addEventListener("click", async () => {
 
 elBtnEnvoyerVideoTikTok?.addEventListener("click", async () => {
   if (!dernierVideoId) return;
+
+  const openId = obtenirOpenId();
+  if (!openId) {
+    elErreurVideo.textContent = "Connecte d'abord ton compte TikTok (onglet Connexion) avant d'envoyer la vidéo.";
+    elErreurVideo.classList.remove("cache");
+    return;
+  }
+
   elErreurVideo.classList.add("cache");
   elBtnEnvoyerVideoTikTok.disabled = true;
   elBtnEnvoyerVideoTikTok.textContent = "Envoi en cours…";
 
   try {
-    const openId = obtenirOpenId();
     const formData = new FormData();
     formData.append("openId", openId);
     formData.append("videoId", dernierVideoId);
