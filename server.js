@@ -222,13 +222,26 @@ app.post("/api/generate-script", async (req, res) => {
 // Renvoie un WAV jouable directement dans un <audio> de navigateur.
 app.post("/api/generate-voice", async (req, res) => {
   const { texte } = req.body;
+
   try {
-    const pcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte });
+    const pcm = await genererVoix({
+      apiKey: GEMINI_API_KEY,
+      texte,
+    });
+
     const wav = envelopperEnWav(pcm);
+
     res.set("Content-Type", "audio/wav");
     res.send(wav);
+
   } catch (e) {
-    res.status(400).json({ erreur: e.message });
+    console.error("=== ERREUR VOIX ===");
+    console.error(e);
+
+    res.status(500).json({
+      erreur: e.message,
+      stack: e.stack,
+    });
   }
 });
 
@@ -244,10 +257,18 @@ app.post("/api/create-video", async (req, res) => {
 
     let audioPcm;
     try {
-      audioPcm = await genererVoix({ apiKey: GEMINI_API_KEY, texte: script });
-    } catch (e) {
-      throw new Error(`Échec de la génération de la voix : ${e.message}`);
-    }
+    audioPcm = await genererVoix({
+        apiKey: GEMINI_API_KEY,
+        texte: script
+    });
+} catch (e) {
+    console.error(e);
+
+    return res.status(500).json({
+        erreur: e.message,
+        stack: e.stack
+    });
+}
 
     let images;
     try {
