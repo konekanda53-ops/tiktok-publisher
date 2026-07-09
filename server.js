@@ -264,7 +264,7 @@ app.post("/api/create-video", async (req, res) => {
 
     let videoBuffer;
     try {
-      videoBuffer = await assemblerVideo({ images, audioPcm });
+      videoBuffer = await assemblerVideo({ images, audioPcm, texteSousTitres: script });
     } catch (e) {
       throw new Error(`Échec du montage vidéo : ${e.message}`);
     }

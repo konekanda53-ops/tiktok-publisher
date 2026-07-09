@@ -5,6 +5,27 @@ génère automatiquement, via l'API Gemini (texte + voix) et Pexels (images) :
 le script, la voix, les images et le montage vidéo — avant envoi en
 **brouillon** dans l'app TikTok de l'utilisateur (scope `video.upload`).
 
+## Nouveau : sous-titres incrustés + effet Ken Burns
+
+Le montage vidéo (`video.js`) ressemble maintenant au format TikTok
+classique, sur le modèle d'une vidéo de référence fournie :
+- **Sous-titres incrustés** — le script est découpé en courtes légendes
+  (5 mots environ), affichées en gras blanc à contour noir, centrées dans le
+  tiers inférieur. Le minutage est réparti au prorata de la longueur de
+  chaque légende par rapport à la durée totale de l'audio (approximation
+  raisonnable, pas un alignement vocal exact — voir `subtitles.js`).
+- **Effet Ken Burns** — chaque image n'est plus figée : un zoom avant lent
+  est appliqué (filtre `zoompan` de ffmpeg).
+- Une police (`fonts/DejaVuSans-Bold.ttf`) est embarquée dans le projet pour
+  que le rendu des sous-titres ne dépende pas d'une police système
+  potentiellement absente sur le serveur de déploiement (licence permissive,
+  voir `fonts/LICENSE_DEJAVU.txt`).
+
+⚠️ **Point à vérifier après déploiement** : l'incrustation de sous-titres
+nécessite que le binaire `ffmpeg-static` téléchargé inclue `libass`. La
+plupart des builds le font, mais si `/api/create-video` échoue avec un
+message mentionnant "subtitles" ou "no such filter", dis-le et on ajustera.
+
 ## Bugs corrigés dans cette version
 
 | Symptôme | Cause | Correction |
