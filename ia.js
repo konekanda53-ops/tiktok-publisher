@@ -25,9 +25,12 @@ d'images de personnages ou d'événements historiques spécifiques).`;
 // adapte donc la limite à la durée demandée.
 function maxTokensPourDuree(duree) {
   const valeur = String(duree || "").toLowerCase();
-  if (valeur.includes("3 min")) return 4096;
+
+  if (valeur.includes("3 min")) return 8192;
+  if (valeur.includes("2 min")) return 4096;
   if (valeur.includes("1 min")) return 2048;
-  return 1536; // 30 s / 45 s
+
+  return 1536;
 }
 
 // Schéma strict : force Gemini à renvoyer "script" comme une VRAIE chaîne de
