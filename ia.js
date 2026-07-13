@@ -63,7 +63,10 @@ export async function genererContenuIA({ apiKey, categorie, sujet, duree, langue
       generationConfig: {
   responseMimeType: "application/json",
   maxOutputTokens: maxTokensPourDuree(duree),
-},
+  thinkingConfig: {
+    thinkingBudget: 0
+  }
+}
     }),
   });
 
