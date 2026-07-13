@@ -72,19 +72,24 @@ export async function genererContenuIA({ apiKey, categorie, sujet, duree, langue
     throw new Error(data.error.message);
   }
 
-  const candidat = data.candidates?.[0];
-  if (!candidat) {
-    throw new Error("Aucune réponse du modèle. Réessaie.");
-  }
+ const candidat = data.candidates?.[0];
 
-  if (candidat.finishReason === "MAX_TOKENS") {
-    throw new Error(
-      "Le script a dépassé la longueur maximale avant d'être complet. Essaie une durée plus courte, ou réessaie."
-    );
-  }
+console.log("===== REPONSE GEMINI =====");
+console.log(JSON.stringify(data, null, 2));
+console.log("==========================");
 
-  console.log("Finish reason :", candidat.finishReason);
-  console.log(JSON.stringify(candidat, null, 2));
+if (!candidat) {
+  throw new Error("Aucune réponse du modèle.");
+}
+
+console.log("FinishReason :", candidat.finishReason);
+
+if (candidat.finishReason === "MAX_TOKENS") {
+  throw new Error(
+    "Le script a dépassé la longueur maximale avant d'être complet. Essaie une durée plus courte, ou réessaie."
+  );
+}
+
   const texte = candidat.content?.parts?.[0]?.text || "";
 
   let contenu;
