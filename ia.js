@@ -61,10 +61,9 @@ export async function genererContenuIA({ apiKey, categorie, sujet, duree, langue
     body: JSON.stringify({
       contents: [{ parts: [{ text: construirePrompt({ categorie, sujet, duree, langue }) }] }],
       generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: SCHEMA_REPONSE,
-        maxOutputTokens: maxTokensPourDuree(duree),
-      },
+  responseMimeType: "application/json",
+  maxOutputTokens: maxTokensPourDuree(duree),
+},
     }),
   });
 
@@ -84,6 +83,8 @@ export async function genererContenuIA({ apiKey, categorie, sujet, duree, langue
     );
   }
 
+  console.log("Finish reason :", candidat.finishReason);
+  console.log(JSON.stringify(candidat, null, 2));
   const texte = candidat.content?.parts?.[0]?.text || "";
 
   let contenu;
