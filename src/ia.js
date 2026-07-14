@@ -7,7 +7,7 @@
 const axios = require('axios');
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 /* ── Prompt système ──────────────────── */
 const SYSTEM_PROMPT = `Tu es un expert en création de contenu viral pour TikTok.
