@@ -159,8 +159,11 @@ async function verifierConnexion() {
     });
     return { connecte: true, utilisateur: response.data?.data?.user };
   } catch (err) {
-    return { connecte: false, erreur: err.response?.data || err.message };
-  }
+    console.error("===== ERREUR TIKTOK =====");
+    console.error("Status :", err.response?.status);
+    console.error("Data :", JSON.stringify(err.response?.data, null, 2));
+    throw err;
+}
 }
 
 module.exports = { publierVideo, verifierConnexion };

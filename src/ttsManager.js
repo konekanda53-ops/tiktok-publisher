@@ -64,6 +64,9 @@ async function genererVoix({ texte, langue = 'fr-FR', qualite = 'standard', outp
         await attendre(delai);
         continue;
       }
+      console.error("===== ERREUR GOOGLE TTS =====");
+console.error("Status :", err.response?.status);
+console.error("Data :", JSON.stringify(err.response?.data, null, 2));
 
       // Erreur finale — message lisible
       throw new Error(formaterErreurTTS(err, tentative));

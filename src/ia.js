@@ -78,7 +78,14 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
     if (err.response?.status === 400) {
       throw new Error(`Paramètre invalide Gemini : ${err.response.data?.error?.message}`);
     }
-    throw err;
+    console.error("===== ERREUR GEMINI =====");
+console.error("URL :", `${GEMINI_API_URL}/${MODEL}:generateContent`);
+console.error("Status :", err.response?.status);
+console.error("Data :", JSON.stringify(err.response?.data, null, 2));
+console.error(err.message);
+console.error("========================");
+
+throw err;
   }
 }
 
