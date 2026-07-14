@@ -1,328 +1,208 @@
-import "dotenv/config";
-import express from "express";
-import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
-import { nanoid } from "nanoid";
-import {
-  genererPKCE,
-  genererState,
-  construireUrlAutorisation,
-  echangerCodeContreToken,
-  rafraichirToken,
-} from "./auth.js";
-import {
-  recupererInfosCreateur,
-  initierBrouillonParFichier,
-  envoyerFichierVersTikTok,
-  verifierStatutPublication,
-} from "./publish.js";
-import { genererContenuIA } from "./ia.js";
-import { genererVoix, envelopperEnWav } from "./voice.js";
-import { genererImagesPourScript } from "./image.js";
-import { assemblerVideo } from "./video.js";
+/* ═══════════════════════════════════════
+   TIKTOK IA STUDIO V2 — server.js
+   Serveur Express + SSE pour la progression
+═══════════════════════════════════════ */
 
-const app = express();
+require('dotenv').config();
+
+const express = require('express');
+const path    = require('path');
+const fs      = require('fs');
+
+const { genererContenu }  = require('./src/ia');
+const { genererVoix }     = require('./src/ttsManager');
+const { obtenirImages }   = require('./src/pexels');
+const { genererSRT }      = require('./src/subtitle');
+const { creerVideo }      = require('./src/video');
+const { publierVideo, verifierConnexion } = require('./src/tiktok');
+
+const app  = express();
+const PORT = process.env.PORT || 3000;
+
+/* ── Middleware ──────────────────────── */
 app.use(express.json());
+app.use(express.static('public'));
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-app.use(express.static(path.join(__dirname, "public")));
+/* ── SSE : envoyer la progression ───── */
+const clients = new Map(); // sessionId → res
 
-// Upload en mémoire (pas d'écriture sur disque) : suffisant pour des vidéos
-// courtes de type TikTok. Limite fixée à 150 Mo.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 150 * 1024 * 1024 },
-});
+function envoyerProgression(sessionId, etape, message, data = {}) {
+  const client = clients.get(sessionId);
+  if (!client) return;
 
-// --- Stockage temporaire en mémoire (à remplacer par une vraie base de
-// données / un vault de secrets avant toute mise en production) ---
-const sessionsPKCE = new Map(); // state -> { verifier }
-const comptes = new Map(); // open_id -> { accessToken, refreshToken, expiresAt }
-
-// Vidéos générées automatiquement, en attente d'être envoyées vers TikTok ou
-// prévisualisées. Purgées après 20 minutes pour ne pas saturer la mémoire du
-// serveur (important sur un hébergeur à mémoire limitée comme Render free).
-const videosGenerees = new Map(); // videoId -> { buffer, creeLe }
-const DUREE_DE_VIE_VIDEO_MS = 20 * 60 * 1000;
-setInterval(() => {
-  const maintenant = Date.now();
-  for (const [id, entree] of videosGenerees) {
-    if (maintenant - entree.creeLe > DUREE_DE_VIE_VIDEO_MS) videosGenerees.delete(id);
-  }
-}, 5 * 60 * 1000);
-
-const {
-  TIKTOK_CLIENT_KEY,
-  TIKTOK_CLIENT_SECRET,
-  TIKTOK_REDIRECT_URI,
-  GEMINI_API_KEY,
-  PORT = 3000,
-} = process.env;
-
-if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET) {
-  console.warn("⚠️  TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants : copie .env.example en .env et remplis-le.");
-}
-if (!GEMINI_API_KEY) {
-  console.warn("⚠️  GEMINI_API_KEY manquante : ajoute-la dans tes variables d'environnement.");
-}
-if (!process.env.PEXELS_API_KEY) {
-  console.warn("⚠️  PEXELS_API_KEY manquante : la génération d'images échouera. Clé gratuite sur https://www.pexels.com/api");
+  const payload = JSON.stringify({ etape, message, ...data });
+  client.write(`data: ${payload}\n\n`);
+  console.log(`[${sessionId}] [${etape}] ${message}`);
 }
 
-// 1) L'utilisateur clique sur "Connecter mon compte TikTok"
-app.get("/auth/tiktok/start", (req, res) => {
-  const { verifier, challenge } = genererPKCE();
-  const state = genererState();
-  sessionsPKCE.set(state, { verifier, creeLe: Date.now() });
+/* ── Route : connexion SSE ───────────── */
+app.get('/api/progression/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
 
-  const url = construireUrlAutorisation({
-    clientKey: TIKTOK_CLIENT_KEY,
-    redirectUri: TIKTOK_REDIRECT_URI,
-    state,
-    codeChallenge: challenge,
+  res.setHeader('Content-Type',  'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection',    'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  clients.set(sessionId, res);
+  console.log(`[SSE] Client connecté : ${sessionId}`);
+
+  req.on('close', () => {
+    clients.delete(sessionId);
+    console.log(`[SSE] Client déconnecté : ${sessionId}`);
   });
 
-  res.redirect(url);
+  // Garder la connexion vivante
+  const heartbeat = setInterval(() => {
+    if (!clients.has(sessionId)) { clearInterval(heartbeat); return; }
+    res.write(': heartbeat\n\n');
+  }, 25000);
 });
 
-// 2) TikTok redirige ici après autorisation par le créateur
-app.get("/auth/tiktok/callback", async (req, res) => {
-  const { code, state, error, error_description } = req.query;
+/* ── Route principale : générer une vidéo ── */
+app.post('/api/generer', async (req, res) => {
+  const {
+    sujet,
+    duree       = 60,
+    langue      = 'fr-FR',
+    style       = 'informatif',
+    publier     = false,
+    sessionId   = `session_${Date.now()}`
+  } = req.body;
 
-  if (error) {
-    return res.status(400).send(`Autorisation refusée : ${error_description || error}`);
+  if (!sujet) {
+    return res.status(400).json({ success: false, erreur: 'Le sujet est requis' });
   }
 
-  const session = sessionsPKCE.get(state);
-  if (!session) {
-    return res.status(400).send("State invalide ou expiré, recommence la connexion.");
-  }
-  sessionsPKCE.delete(state);
+  // Répondre immédiatement avec l'ID de session
+  res.json({ success: true, sessionId, message: 'Génération démarrée...' });
 
+  // Traitement asynchrone
   try {
-    const token = await echangerCodeContreToken({
-      clientKey: TIKTOK_CLIENT_KEY,
-      clientSecret: TIKTOK_CLIENT_SECRET,
-      code,
-      redirectUri: TIKTOK_REDIRECT_URI,
-      codeVerifier: session.verifier,
+    const TMP_DIR = process.env.TMP_DIR || './tmp';
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+
+    // ═══ ÉTAPE 1 : Génération du contenu IA ═══
+    envoyerProgression(sessionId, 'ia', 'Génération du script avec Gemini...', { pct: 5 });
+    const contenu = await genererContenu({ sujet, duree, langue: langue.slice(0, 2), style });
+    envoyerProgression(sessionId, 'ia_ok', 'Script généré !', {
+      pct: 20,
+      titre:        contenu.titre,
+      script:       contenu.script,
+      description:  contenu.description,
+      hashtags:     contenu.hashtags
     });
 
-    comptes.set(token.open_id, {
-      accessToken: token.access_token,
-      refreshToken: token.refresh_token,
-      expiresAt: Date.now() + token.expires_in * 1000,
-    });
-
-    res.redirect(`/app/?openId=${encodeURIComponent(token.open_id)}`);
-  } catch (e) {
-    res.status(500).send(`Erreur lors de l'échange du token : ${e.message}`);
-  }
-});
-
-// Récupère un token valide pour un compte, en le rafraîchissant si besoin
-async function obtenirTokenValide(openId) {
-  const compte = comptes.get(openId);
-  if (!compte) throw new Error("Ce compte n'est pas connecté. Lance /auth/tiktok/start d'abord.");
-
-  if (Date.now() > compte.expiresAt - 60_000) {
-    const refresh = await rafraichirToken({
-      clientKey: TIKTOK_CLIENT_KEY,
-      clientSecret: TIKTOK_CLIENT_SECRET,
-      refreshToken: compte.refreshToken,
-    });
-    compte.accessToken = refresh.access_token;
-    compte.refreshToken = refresh.refresh_token;
-    compte.expiresAt = Date.now() + refresh.expires_in * 1000;
-  }
-
-  return compte.accessToken;
-}
-
-// 3) Infos du créateur, pour affichage (pseudo, avatar...).
-app.get("/api/creator-info", async (req, res) => {
-  try {
-    const accessToken = await obtenirTokenValide(req.query.openId);
-    try {
-      const infos = await recupererInfosCreateur(accessToken);
-      res.json({ ...infos, degrade: false });
-    } catch (e) {
-      res.json({ degrade: true, erreur: e.message });
-    }
-  } catch (e) {
-    res.status(400).json({ erreur: e.message });
-  }
-});
-
-// 4) Envoyer une vidéo vers TikTok en brouillon.
-// Deux sources possibles :
-//  - un fichier uploadé manuellement (multipart, champ "video") ;
-//  - une vidéo déjà générée par l'IA (champ "videoId", voir /api/create-video).
-app.post("/api/publish", upload.single("video"), async (req, res) => {
-  const { openId, videoId } = req.body;
-
-  try {
-    let buffer;
-    if (req.file) {
-      buffer = req.file.buffer;
-    } else if (videoId) {
-      const entree = videosGenerees.get(videoId);
-      if (!entree) return res.status(400).json({ erreur: "Vidéo introuvable ou expirée, régénère-la." });
-      buffer = entree.buffer;
-    } else {
-      return res.status(400).json({ erreur: "Aucun fichier vidéo ni vidéo générée reçue." });
-    }
-
-    const accessToken = await obtenirTokenValide(openId);
-
-    const { publish_id, upload_url } = await initierBrouillonParFichier({
-      accessToken,
-      tailleOctets: buffer.length,
-    });
-
-    await envoyerFichierVersTikTok({ uploadUrl: upload_url, buffer });
-
-    res.json({ publishId: publish_id });
-  } catch (e) {
-    res.status(400).json({ erreur: e.message });
-  }
-});
-
-// 5) Suivre le statut d'un envoi en cours
-app.get("/api/publish/status", async (req, res) => {
-  const { openId, publishId } = req.query;
-  try {
-    const accessToken = await obtenirTokenValide(openId);
-    const statut = await verifierStatutPublication({ accessToken, publishId });
-    res.json(statut);
-  } catch (e) {
-    res.status(400).json({ erreur: e.message });
-  }
-});
-
-// 6) Générer un contenu (idée, script, titre, SEO, hashtags) avec l'IA
-app.post("/api/generate-script", async (req, res) => {
-  const { categorie, sujet, duree, langue } = req.body;
-  try {
-    const contenu = await genererContenuIA({
-      apiKey: GEMINI_API_KEY,
-      categorie,
-      sujet,
-      duree,
+    // ═══ ÉTAPE 2 : Génération de la voix ═══
+    envoyerProgression(sessionId, 'voix', 'Génération de la voix...', { pct: 30 });
+    const voixResult = await genererVoix({
+      texte:      contenu.script,
       langue,
+      qualite:    'standard',
+      outputPath: path.join(TMP_DIR, `voix_${sessionId}.mp3`)
     });
-    res.json(contenu);
-  } catch (e) {
-    res.status(400).json({ erreur: e.message });
-  }
-});
+    envoyerProgression(sessionId, 'voix_ok', `Voix générée (${voixResult.duree}s)`, { pct: 45 });
 
-// 7) Générer uniquement la voix (aperçu audio) à partir d'un texte.
-// Renvoie un WAV jouable directement dans un <audio> de navigateur.
-app.post("/api/generate-voice", async (req, res) => {
-  const { texte } = req.body;
+    // ═══ ÉTAPE 3 : Récupération des images ═══
+    envoyerProgression(sessionId, 'images', 'Téléchargement des images Pexels...', { pct: 50 });
+    const images = await obtenirImages({
+      keywords:    contenu.visual_keywords,
+      nbImages:    Math.max(3, Math.ceil(duree / 10)),
+      orientation: 'portrait'
+    });
+    envoyerProgression(sessionId, 'images_ok', `${images.length} image(s) téléchargée(s)`, { pct: 65 });
 
-  try {
-    const pcm = await genererVoix({
-      apiKey: GEMINI_API_KEY,
-      texte,
+    // ═══ ÉTAPE 4 : Sous-titres ═══
+    envoyerProgression(sessionId, 'subs', 'Génération des sous-titres...', { pct: 70 });
+    const subsResult = genererSRT({
+      script:     contenu.script,
+      dureeAudio: voixResult.duree,
+      outputPath: path.join(TMP_DIR, `subs_${sessionId}.srt`)
+    });
+    envoyerProgression(sessionId, 'subs_ok', `${subsResult.nbSegments} sous-titres créés`, { pct: 75 });
+
+    // ═══ ÉTAPE 5 : Montage vidéo ═══
+    envoyerProgression(sessionId, 'video', 'Montage de la vidéo avec FFmpeg...', { pct: 80 });
+    const videoResult = await creerVideo({
+      images:            images,
+      voixFichier:       voixResult.fichier,
+      sousTitresFichier: subsResult.fichier,
+      dureeAudio:        voixResult.duree,
+      titre:             contenu.titre
+    });
+    envoyerProgression(sessionId, 'video_ok', 'Vidéo montée !', {
+      pct:     publier ? 85 : 100,
+      fichier: `/output/${path.basename(videoResult.fichier)}`,
+      taille:  videoResult.taille
     });
 
-    const wav = envelopperEnWav(pcm);
-
-    res.set("Content-Type", "audio/wav");
-    res.send(wav);
-
-  } catch (e) {
-    console.error("=== ERREUR VOIX ===");
-    console.error(e);
-
-    res.status(500).json({
-      erreur: e.message,
-      stack: e.stack,
-    });
-  }
-});
-
-// 8) Pipeline complet : script → voix → images → montage ffmpeg → vidéo.
-// L'utilisateur ne choisit aucun fichier ici : tout est généré. Peut prendre
-// 30 secondes à 2 minutes selon la longueur du script et le nombre d'images.
-app.post("/api/create-video", async (req, res) => {
-  const { idee, script, motsClesVisuels } = req.body;
-  try {
-    if (!script || !String(script).trim()) {
-      return res.status(400).json({ erreur: "Aucun script fourni. Génère d'abord un script." });
-    }
-
-    let audioPcm;
-    try {
-    audioPcm = await genererVoix({
-        apiKey: GEMINI_API_KEY,
-        texte: script
-    });
-} catch (e) {
-    console.error(e);
-
-    return res.status(500).json({
-        erreur: e.message,
-        stack: e.stack
-    });
-}
-
-    let images;
-    try {
-      images = await genererImagesPourScript({
-        apiKey: process.env.PEXELS_API_KEY,
-        idee: idee || script.slice(0, 80),
-        script,
-        motsClesVisuels,
-        nombreImages: 4,
+    // ═══ ÉTAPE 6 : Publication TikTok (optionnel) ═══
+    if (publier) {
+      envoyerProgression(sessionId, 'tiktok', 'Publication sur TikTok...', { pct: 90 });
+      const tiktokResult = await publierVideo({
+        fichierVideo: videoResult.fichier,
+        titre:        contenu.titre,
+        description:  contenu.description,
+        hashtags:     contenu.hashtags,
+        modePublic:   false // brouillon par défaut
       });
-    } catch (e) {
-      throw new Error(`Échec de la génération des images : ${e.message}`);
+      envoyerProgression(sessionId, 'tiktok_ok', 'Publié sur TikTok !', {
+        pct:       100,
+        publishId: tiktokResult.publishId,
+        lien:      tiktokResult.lien
+      });
     }
 
-    let videoBuffer;
-    try {
-      videoBuffer = await assemblerVideo({ images, audioPcm, texteSousTitres: script });
-    } catch (e) {
-      throw new Error(`Échec du montage vidéo : ${e.message}`);
-    }
+    // ═══ TERMINÉ ═══
+    envoyerProgression(sessionId, 'termine', 'Vidéo prête !', { pct: 100 });
 
-    const videoId = nanoid();
-    videosGenerees.set(videoId, { buffer: videoBuffer, creeLe: Date.now() });
-
-    res.json({ videoId });
-  } catch (e) {
-    res.status(500).json({ erreur: e.message });
+  } catch (err) {
+    console.error(`[Erreur] ${sessionId} :`, err.message);
+    envoyerProgression(sessionId, 'erreur', err.message, { pct: 0 });
   }
 });
 
-// 9) Prévisualiser / télécharger une vidéo générée par l'IA
-app.get("/api/video/:id", (req, res) => {
-  const entree = videosGenerees.get(req.params.id);
-  if (!entree) return res.status(404).json({ erreur: "Vidéo introuvable ou expirée." });
-  res.set("Content-Type", "video/mp4");
-  res.send(entree.buffer);
+/* ── Route : status TikTok ───────────── */
+app.get('/api/tiktok/status', async (req, res) => {
+  const statut = await verifierConnexion();
+  res.json(statut);
 });
 
-// Évite le bruit de 404 sur /favicon.ico dans les logs et la console
-app.get("/favicon.ico", (req, res) => res.status(204).end());
+/* ── Route : liste des vidéos générées ── */
+app.get('/api/videos', (req, res) => {
+  const OUTPUT_DIR = process.env.OUTPUT_DIR || './output';
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-// Redirections courtes vers les vraies pages légales (public/*.html)
-app.get("/privacy", (req, res) => res.redirect("/politique-confidentialite.html"));
-app.get("/terms", (req, res) => res.redirect("/conditions-utilisation.html"));
+  const fichiers = fs.readdirSync(OUTPUT_DIR)
+    .filter(f => f.endsWith('.mp4'))
+    .map(f => {
+      const stats = fs.statSync(path.join(OUTPUT_DIR, f));
+      return {
+        nom:     f,
+        url:     `/output/${f}`,
+        taille:  stats.size,
+        date:    stats.mtime
+      };
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-// Filet de sécurité pour les erreurs multer (fichier trop gros, etc.)
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    return res.status(400).json({ erreur: `Erreur d'envoi de fichier : ${err.message}` });
-  }
-  next(err);
+  res.json({ videos: fichiers });
 });
 
+/* ── Servir les vidéos générées ──────── */
+app.use('/output', express.static(process.env.OUTPUT_DIR || './output'));
+
+/* ── Page d'accueil ──────────────────── */
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+/* ── Démarrage ───────────────────────── */
 app.listen(PORT, () => {
-  console.log(`✅ Serveur prêt sur http://localhost:${PORT}`);
-  console.log(`   Connecte un compte TikTok ici : http://localhost:${PORT}/auth/tiktok/start`);
+  console.log(`\n🎬 TikTok IA Studio V2`);
+  console.log(`🚀 Serveur : http://localhost:${PORT}`);
+  console.log(`📂 Vidéos  : ${path.resolve(process.env.OUTPUT_DIR || './output')}`);
+  console.log(`📁 Temp    : ${path.resolve(process.env.TMP_DIR || './tmp')}\n`);
 });
+
+module.exports = app;

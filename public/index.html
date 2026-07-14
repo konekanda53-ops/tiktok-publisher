@@ -1,234 +1,214 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TikTok IA Studio — Transforme l'histoire en contenu viral</title>
-<meta name="description" content="Génère des idées, des scripts et des publications TikTok sur l'histoire et la culture, puis publie directement sur ton compte." />
-<link rel="stylesheet" href="/assets/site.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TikTok IA Studio V2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-  <header class="entete">
-    <div class="entete-inner">
-      <a href="/" class="logo">TikTok IA <span>Studio</span></a>
-      <nav class="nav-site">
-        <a href="#fonctionnalites">Fonctionnalités</a>
-        <a href="#comment-ca-marche">Comment ça marche</a>
-        <a href="#tarifs">Tarifs</a>
-        <a href="/conditions-utilisation.html">CGU</a>
-      </nav>
-      <a href="/app/" class="bouton bouton-or">Ouvrir le studio</a>
+<!-- ═══ HEADER ═══ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🎬</span>
+      <span>TikTok <strong>IA Studio</strong> <span class="badge">V2</span></span>
     </div>
-  </header>
+    <div class="tiktok-status" id="tiktok-status">
+      <span class="dot"></span>
+      <span class="status-text">Vérification TikTok...</span>
+    </div>
+  </div>
+</header>
 
-  <section class="hero">
-    <div class="enveloppe">
-      <p class="eyebrow">Assistant de création — Histoire &amp; culture</p>
-      <h1>Transforme l'histoire en <em>contenu qui capte l'attention.</em></h1>
-      <p class="hero-sous">
-        TikTok IA Studio génère des idées, écrit tes scripts, crée voix et
-        images, assemble la vidéo — puis l'envoie directement dans ton app
-        TikTok. Pensé pour les créateurs d'histoire et de culture, en
-        particulier l'histoire africaine et francophone.
-      </p>
-      <div class="hero-actions">
-        <a href="/app/" class="bouton bouton-or">Ouvrir le studio</a>
-        <a href="#comment-ca-marche" class="bouton bouton-fantome">Voir comment ça marche</a>
-      </div>
-      <p class="hero-note">Ta clé API et tes identifiants TikTok restent dans ton propre environnement — rien n'est partagé avec un tiers.</p>
+<!-- ═══ MAIN ═══ -->
+<main class="main">
 
-      <div class="apercu">
-        <div class="apercu-barre">
-          <span class="apercu-point"></span><span class="apercu-point"></span><span class="apercu-point"></span>
-        </div>
-        <div class="apercu-corps">
-          <div class="apercu-nav">
-            <span>🏠 Dashboard</span>
-            <span class="actif">✍️ Script IA</span>
-            <span>🎙️ Voix</span>
-            <span>🎬 Vidéo</span>
-            <span>📤 Publication</span>
-            <span>📊 Statistiques</span>
-          </div>
-          <div class="apercu-panneau">
-            <h3>Le roi le plus riche de l'histoire 😳</h3>
-            <p>Mansa Moussa, empereur de l'Empire du Mali, distribua tant d'or lors de son
-            pèlerinage à La Mecque que plusieurs économies en furent durablement affectées.</p>
-            <div class="apercu-tags">
-              <span class="apercu-tag">#Histoire</span>
-              <span class="apercu-tag">#MansaMoussa</span>
-              <span class="apercu-tag">#EmpireDuMali</span>
-              <span class="apercu-tag">#Afrique</span>
-              <span class="apercu-tag">#PourToi</span>
-            </div>
-          </div>
+  <!-- ── Formulaire ── -->
+  <section class="card form-card">
+    <h2 class="card-title">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Nouvelle vidéo
+    </h2>
+
+    <div class="form-group">
+      <label class="label">Sujet de la vidéo *</label>
+      <input class="input" type="text" id="sujet" placeholder="Ex : L'histoire de l'empire du Mali" maxlength="200">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="label">Durée</label>
+        <select class="select" id="duree">
+          <option value="30">30 secondes</option>
+          <option value="60" selected>1 minute</option>
+          <option value="90">1 min 30</option>
+          <option value="120">2 minutes</option>
+          <option value="180">3 minutes</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Style</label>
+        <select class="select" id="style">
+          <option value="informatif">Informatif</option>
+          <option value="divertissant">Divertissant</option>
+          <option value="éducatif">Éducatif</option>
+          <option value="storytelling">Storytelling</option>
+          <option value="motivant">Motivant</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Langue</label>
+        <select class="select" id="langue">
+          <option value="fr-FR" selected>Français</option>
+          <option value="en-US">English</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-check">
+      <input type="checkbox" id="publier" class="checkbox">
+      <label for="publier" class="check-label">
+        Publier automatiquement sur TikTok (brouillon)
+      </label>
+    </div>
+
+    <button class="btn-generate" id="btn-generer" onclick="lancerGeneration()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Générer la vidéo
+    </button>
+  </section>
+
+  <!-- ── Progression ── -->
+  <section class="card progress-card hidden" id="progress-card">
+    <h2 class="card-title">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Génération en cours...
+    </h2>
+
+    <!-- Barre globale -->
+    <div class="progress-wrap">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <span class="progress-pct" id="progress-pct">0%</span>
+    </div>
+
+    <!-- Étapes -->
+    <div class="steps" id="steps-list">
+      <div class="step" id="step-ia">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Script IA (Gemini)</div>
+          <div class="step-status" id="step-ia-status">En attente</div>
         </div>
       </div>
+      <div class="step" id="step-voix">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Voix</div>
+          <div class="step-status" id="step-voix-status">En attente</div>
+        </div>
+      </div>
+      <div class="step" id="step-images">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Images Pexels</div>
+          <div class="step-status" id="step-images-status">En attente</div>
+        </div>
+      </div>
+      <div class="step" id="step-subs">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Sous-titres</div>
+          <div class="step-status" id="step-subs-status">En attente</div>
+        </div>
+      </div>
+      <div class="step" id="step-video">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Montage FFmpeg</div>
+          <div class="step-status" id="step-video-status">En attente</div>
+        </div>
+      </div>
+      <div class="step" id="step-tiktok" style="display:none;">
+        <div class="step-dot pending"></div>
+        <div class="step-info">
+          <div class="step-label">Publication TikTok</div>
+          <div class="step-status" id="step-tiktok-status">En attente</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div class="error-box hidden" id="error-box">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="error-msg"></span>
     </div>
   </section>
 
-  <div class="bogolan-section"><div data-bogolan></div></div>
+  <!-- ── Résultat ── -->
+  <section class="card result-card hidden" id="result-card">
+    <h2 class="card-title">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Vidéo prête !
+    </h2>
 
-  <section class="section" id="fonctionnalites">
-    <div class="enveloppe">
-      <div class="section-tete">
-        <p class="eyebrow">Fonctionnalités</p>
-        <h2>Tout le flux de création, dans un seul endroit</h2>
-        <p>Certaines briques sont déjà actives, d'autres arrivent — chaque carte indique clairement où on en est.</p>
-      </div>
+    <!-- Infos du script -->
+    <div class="script-info" id="script-info">
+      <div class="script-titre" id="res-titre">—</div>
+      <div class="script-desc" id="res-description">—</div>
+      <div class="hashtags" id="res-hashtags"></div>
+    </div>
 
-      <div class="grille-fonctions">
-        <div class="carte-fonction">
-          <span class="carte-icone">✍️</span>
-          <h3>Script IA</h3>
-          <p>Idée, script, titre, description SEO et hashtags générés à partir d'une catégorie ou d'un sujet précis.</p>
-          <span class="statut-disponible">Disponible</span>
-        </div>
-        <div class="carte-fonction">
-          <span class="carte-icone">🎙️</span>
-          <h3>Voix IA</h3>
-          <p>Transforme automatiquement le script généré en narration audio (voix Gemini).</p>
-          <span class="statut-disponible">Disponible (bêta)</span>
-        </div>
-        <div class="carte-fonction">
-          <span class="carte-icone">🎬</span>
-          <h3>Génération vidéo</h3>
-          <p>Assemble automatiquement voix et images générées par l'IA en une vidéo verticale prête à envoyer.</p>
-          <span class="statut-disponible">Disponible (bêta)</span>
-        </div>
-        <div class="carte-fonction">
-          <span class="carte-icone">📤</span>
-          <h3>Envoi vers TikTok</h3>
-          <p>Connecte ton compte TikTok et envoie ta vidéo en brouillon, générée par l'IA ou importée toi-même.</p>
-          <span class="statut-disponible">Disponible</span>
-        </div>
-        <div class="carte-fonction">
-          <span class="carte-icone">📅</span>
-          <h3>Calendrier de publication</h3>
-          <p>Planifie tes vidéos aux créneaux où ton audience est la plus active.</p>
-          <span class="statut-bientot">Bientôt</span>
-        </div>
-        <div class="carte-fonction">
-          <span class="carte-icone">📊</span>
-          <h3>Statistiques &amp; tendances</h3>
-          <p>Vues, engagement, rétention et conseils automatiques pour améliorer chaque publication.</p>
-          <span class="statut-bientot">Bientôt</span>
-        </div>
-      </div>
+    <!-- Script texte -->
+    <details class="script-details">
+      <summary>Voir le script complet</summary>
+      <div class="script-text" id="res-script">—</div>
+    </details>
+
+    <!-- Actions -->
+    <div class="result-actions">
+      <a class="btn-download" id="btn-download" href="#" download>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger la vidéo
+      </a>
+      <button class="btn-new" onclick="nouvelleVideo()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nouvelle vidéo
+      </button>
+    </div>
+
+    <!-- TikTok lien -->
+    <div class="tiktok-link hidden" id="tiktok-link">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 00-.79-.05A6.34 6.34 0 003.15 15.3a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.13a8.16 8.16 0 004.77 1.52V7.17a4.85 4.85 0 01-1.01-.48z"/></svg>
+      <a id="tiktok-lien-url" href="#" target="_blank">Voir sur TikTok</a>
     </div>
   </section>
 
-  <div class="bogolan-section"><div data-bogolan></div></div>
-
-  <section class="section" id="comment-ca-marche">
-    <div class="enveloppe">
-      <div class="section-tete">
-        <p class="eyebrow">Comment ça marche</p>
-        <h2>De l'idée à la publication, en cinq étapes</h2>
-        <p>Un flux linéaire, pensé pour te faire gagner du temps sans perdre le contrôle éditorial.</p>
-      </div>
-
-      <div class="parcours-site">
-        <div class="etape-site">
-          <span class="etape-numero">01</span>
-          <div><h3>Choisis une catégorie</h3><p>Histoire, civilisations, mystères, science… ou un sujet précis que tu as en tête.</p></div>
-        </div>
-        <div class="etape-site">
-          <span class="etape-numero">02</span>
-          <div><h3>Génère ton script</h3><p>L'IA rédige une idée, un script complet, un titre accrocheur et une description SEO.</p></div>
-        </div>
-        <div class="etape-site">
-          <span class="etape-numero">03</span>
-          <div><h3>Génère voix et vidéo</h3><p>L'IA crée la narration et les images, puis assemble automatiquement la vidéo — ou importe ton propre fichier.</p></div>
-        </div>
-        <div class="etape-site">
-          <span class="etape-numero">04</span>
-          <div><h3>Connecte ton compte</h3><p>Autorisation sécurisée via l'API officielle TikTok — tes identifiants ne transitent jamais par un tiers.</p></div>
-        </div>
-        <div class="etape-site">
-          <span class="etape-numero">05</span>
-          <div><h3>Envoie et suis le statut</h3><p>Un clic pour envoyer la vidéo en brouillon, un suivi en direct jusqu'à la confirmation.</p></div>
-        </div>
-      </div>
+  <!-- ── Historique vidéos ── -->
+  <section class="card">
+    <h2 class="card-title">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+      Vidéos générées
+    </h2>
+    <div id="videos-list" class="videos-list">
+      <div class="empty-state">Aucune vidéo encore générée.</div>
     </div>
   </section>
 
-  <div class="bogolan-section"><div data-bogolan></div></div>
+</main>
 
-  <section class="section" id="tarifs">
-    <div class="enveloppe">
-      <div class="section-tete">
-        <p class="eyebrow">Tarifs</p>
-        <h2>Un studio pensé pour évoluer avec toi</h2>
-        <p>Le studio tourne sur ton propre environnement : ce que tu utilises (API IA, hébergement) reste sous ton contrôle et à ton coût réel.</p>
-      </div>
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer">
+  TikTok IA Studio V2 — Propulsé par Gemini · Pexels · Google TTS · FFmpeg
+</footer>
 
-      <div class="grille-tarifs">
-        <div class="carte-tarif">
-          <p class="tarif-nom">Gratuit</p>
-          <p class="tarif-prix">Pour démarrer</p>
-          <ul class="tarif-liste">
-            <li>Génération de script IA</li>
-            <li>Connexion d'un compte TikTok</li>
-            <li>Envoi manuel assisté</li>
-            <li>Suivi de statut d'envoi</li>
-          </ul>
-          <a href="/app/" class="bouton bouton-fantome">Ouvrir le studio</a>
-        </div>
-        <div class="carte-tarif mis-en-avant">
-          <p class="tarif-nom">Pro</p>
-          <p class="tarif-prix">Pour les créateurs réguliers</p>
-          <ul class="tarif-liste">
-            <li>Tout ce qui est inclus dans Gratuit</li>
-            <li>Voix IA et génération vidéo automatique</li>
-            <li>Calendrier de publication</li>
-            <li>Statistiques et conseils automatiques</li>
-          </ul>
-          <a href="/app/" class="bouton bouton-or">Ouvrir le studio</a>
-        </div>
-        <div class="carte-tarif">
-          <p class="tarif-nom">Entreprise</p>
-          <p class="tarif-prix">Pour les équipes et agences</p>
-          <ul class="tarif-liste">
-            <li>Tout ce qui est inclus dans Pro</li>
-            <li>Plusieurs comptes TikTok</li>
-            <li>Publication multi-plateformes</li>
-            <li>Accompagnement dédié</li>
-          </ul>
-          <a href="#" class="bouton bouton-fantome">Nous contacter</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="bogolan-section"><div data-bogolan></div></div>
-
-  <section class="cta-final">
-    <h2>Prêt à raconter une histoire aujourd'hui ?</h2>
-    <p>Ouvre le studio, choisis un sujet, et laisse l'IA t'aider à écrire, illustrer et raconter la suite.</p>
-    <a href="/app/" class="bouton bouton-or">Ouvrir le studio</a>
-  </section>
-
-  <footer class="pied">
-    <div class="enveloppe pied-inner">
-      <div class="pied-colonne">
-        <h4>Produit</h4>
-        <a href="/app/">Ouvrir le studio</a>
-        <a href="#fonctionnalites">Fonctionnalités</a>
-        <a href="#tarifs">Tarifs</a>
-      </div>
-      <div class="pied-colonne">
-        <h4>Légal</h4>
-        <a href="/conditions-utilisation.html">Conditions d'utilisation</a>
-        <a href="/politique-confidentialite.html">Politique de confidentialité</a>
-      </div>
-    </div>
-    <div class="enveloppe pied-bas">
-      © 2026 TikTok IA Studio. Projet indépendant, non affilié à TikTok Ltd.
-    </div>
-  </footer>
-
-  <script src="/assets/site.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
