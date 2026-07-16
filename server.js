@@ -130,6 +130,19 @@ app.post('/api/generer', async (req, res) => {
       dureeAudio:        voixResult.duree,
       titre:             contenu.titre
     });
+    console.log("===== IMAGES =====");
+
+images.forEach((img, i) => {
+    console.log(i + 1, img.fichier);
+
+    if (fs.existsSync(img.fichier)) {
+        console.log("OK");
+    } else {
+        console.log("ABSENTE");
+    }
+});
+
+console.log("==================");
     envoyerProgression(sessionId, 'video_ok', 'Vidéo montée !', {
       pct:     publier ? 85 : 100,
       fichier: `/output/${path.basename(videoResult.fichier)}`,

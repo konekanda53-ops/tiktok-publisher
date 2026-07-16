@@ -79,6 +79,7 @@ async function rechercherPhotos(query, orientation = 'portrait') {
   }
 
   const response = await axios.get('https://api.pexels.com/v1/search', {
+    
     headers: { Authorization: process.env.PEXELS_API_KEY },
     params: {
       query,
@@ -89,6 +90,7 @@ async function rechercherPhotos(query, orientation = 'portrait') {
     },
     timeout: 15000
   });
+  
 
   const photos = response.data?.photos || [];
   cache.set(cacheKey, photos);
@@ -97,26 +99,49 @@ async function rechercherPhotos(query, orientation = 'portrait') {
 
 /* ── Télécharger une photo en local ─── */
 async function telechargerPhoto(photo, keyword) {
-  // Utiliser la version "large2x" pour avoir une bonne qualité sans trop de poids
-  const urlImage = photo.src.large2x || photo.src.large || photo.src.original;
-  const ext      = 'jpg';
-  const nomFichier = `img_${keyword.replace(/\s+/g, '_')}_${photo.id}.${ext}`;
-  const fichier  = path.join(TMP_DIR, nomFichier);
+  try {
+    const urlImage = photo.src.large2x || photo.src.large || photo.src.original;
+    const ext = "jpg";
 
-  // Si déjà téléchargée dans cette session, la réutiliser
-  if (fs.existsSync(fichier)) {
+    const nomFichier =
+`img_${keyword
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .toLowerCase()
+}_${photo.id}.jpg`;
+    const fichier = path.join(TMP_DIR, nomFichier);
+
+    if (fs.existsSync(fichier)) {
+      return fichier;
+    }
+
+    const response = await axios.get(urlImage, {
+      responseType: "arraybuffer",
+      timeout: 30000,
+      headers: {
+        "User-Agent": "TikTokIAStudio/2.0"
+      }
+    });
+
+    fs.writeFileSync(fichier, response.data);
+
+    console.log("[Pexels] ✓", nomFichier);
+
     return fichier;
+
+  } catch (err) {
+
+    console.error("========== ERREUR PEXELS ==========");
+    console.error("Status :", err.response?.status);
+    console.error("URL :", err.config?.url);
+    console.error("Message :", err.message);
+    console.error("Data :", err.response?.data);
+    console.error("===================================");
+
+    throw err;
   }
-
-  const response = await axios.get(urlImage, {
-    responseType: 'arraybuffer',
-    timeout: 30000,
-    headers: { 'User-Agent': 'TikTokIAStudio/2.0' }
-  });
-
-  fs.writeFileSync(fichier, response.data);
-  console.log(`[Pexels] ✓ Téléchargé : ${nomFichier}`);
-  return fichier;
 }
 
 /* ── Vider le cache (entre deux vidéos) ── */
