@@ -127,6 +127,19 @@ function monterVideo({
   dureeAudio
 }) {
   return new Promise((resolve, reject) => {
+    // Convertir tous les chemins en chemins absolus
+listeFichier = path.resolve(listeFichier);
+voixFichier = path.resolve(voixFichier);
+
+if (sousTitresFichier) {
+    sousTitresFichier = path.resolve(sousTitresFichier);
+}
+
+if (musiqueFichier) {
+    musiqueFichier = path.resolve(musiqueFichier);
+}
+
+outputPath = path.resolve(outputPath);
 
     // Vérifications
     if (!fs.existsSync(listeFichier)) {
@@ -216,14 +229,22 @@ function monterVideo({
         resolve();
       })
 
-      .on("error", (err, stdout, stderr) => {
+            .on("error", (err, stdout, stderr) => {
         console.error("===== STDERR FFMPEG =====");
         console.error(stderr);
         console.error("=========================");
         reject(err);
-      })
+      });
 
-      .run();
+// Vérification juste avant d'exécuter FFmpeg
+console.log("===== VERIFICATION DES FICHIERS =====");
+console.log("Liste :", listeFichier, fs.existsSync(listeFichier));
+console.log("Voix  :", voixFichier, fs.existsSync(voixFichier));
+console.log("Subs  :", sousTitresFichier, fs.existsSync(sousTitresFichier));
+console.log("Sortie:", outputPath);
+console.log("=====================================");
+
+cmd.run();
 
   });
 }
