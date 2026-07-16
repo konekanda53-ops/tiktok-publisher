@@ -118,86 +118,115 @@ async function creerListeImages(images) {
 }
 
 /* ── Montage FFmpeg principal ────────── */
-function monterVideo({ listeFichier, voixFichier, musiqueFichier, sousTitresFichier, outputPath, dureeAudio }) {
+function monterVideo({
+  listeFichier,
+  voixFichier,
+  musiqueFichier,
+  sousTitresFichier,
+  outputPath,
+  dureeAudio
+}) {
   return new Promise((resolve, reject) => {
-    let cmd = ffmpeg();
 
-    // Input 1 : séquence d'images
-    let cmd = ffmpeg();
-
-cmd = cmd
-  .input(listeFichier)
-  .inputOptions([
-    "-f",
-    "concat",
-    "-safe",
-    "0"
-  ]);
-
-console.log("[Video] FFmpeg va lire :", listeFichier);
-
-if (!fs.existsSync(listeFichier)) {
-  throw new Error("Le fichier liste FFmpeg est introuvable.");
-}
-    // Input 2 : voix
-    cmd = cmd.input(voixFichier);
-
-    // Input 3 : musique de fond (optionnel)
-    let avecMusique = false;
-    if (musiqueFichier && fs.existsSync(musiqueFichier)) {
-      cmd = cmd.input(musiqueFichier);
-      avecMusique = true;
+    // Vérifications
+    if (!fs.existsSync(listeFichier)) {
+      return reject(new Error(`Liste FFmpeg introuvable : ${listeFichier}`));
     }
 
-    // Options vidéo
-    cmd = cmd.outputOptions([
-      '-vf', construireFiltrVideo(sousTitresFichier),
-      '-c:v', FORMAT_TIKTOK.codec,
-      '-preset', FORMAT_TIKTOK.preset,
-      '-crf', FORMAT_TIKTOK.crf,
-      '-r', FORMAT_TIKTOK.fps,
-      '-pix_fmt', 'yuv420p',
-      '-t', dureeAudio,
+    if (!fs.existsSync(voixFichier)) {
+      return reject(new Error(`Voix introuvable : ${voixFichier}`));
+    }
+
+    console.log("[Video] FFmpeg va lire :", listeFichier);
+
+    let cmd = ffmpeg();
+
+    // Input 1 : liste des images
+    cmd.input(listeFichier)
+      .inputOptions([
+        "-f", "concat",
+        "-safe", "0"
+      ]);
+
+    // Input 2 : voix
+    cmd.input(voixFichier);
+
+    // Input 3 : musique (optionnelle)
+    const avecMusique =
+      musiqueFichier &&
+      fs.existsSync(musiqueFichier);
+
+    if (avecMusique) {
+      cmd.input(musiqueFichier);
+    }
+
+    // Filtre vidéo
+    cmd.outputOptions([
+      "-vf", construireFiltrVideo(sousTitresFichier),
+      "-c:v", FORMAT_TIKTOK.codec,
+      "-preset", FORMAT_TIKTOK.preset,
+      "-crf", FORMAT_TIKTOK.crf,
+      "-r", FORMAT_TIKTOK.fps,
+      "-pix_fmt", "yuv420p",
+      "-t", String(dureeAudio)
     ]);
 
-    // Options audio
+    // Audio
     if (avecMusique) {
-      // Mixer voix + musique (voix à 100%, musique à 20%)
-      cmd = cmd.outputOptions([
-        '-filter_complex', '[1:a][2:a]amix=inputs=2:weights=1 0.2[aout]',
-        '-map', '0:v',
-        '-map', '[aout]',
-        '-c:a', 'aac',
-        '-b:a', '192k'
+
+      cmd.outputOptions([
+        "-filter_complex",
+        "[1:a][2:a]amix=inputs=2:weights=1 0.2[aout]",
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:a", "aac",
+        "-b:a", "192k"
       ]);
+
     } else {
-      cmd = cmd.outputOptions([
-        '-map', '0:v',
-        '-map', '1:a',
-        '-c:a', 'aac',
-        '-b:a', '192k'
+
+      cmd.outputOptions([
+        "-map", "0:v",
+        "-map", "1:a",
+        "-c:a", "aac",
+        "-b:a", "192k"
       ]);
+
     }
 
     cmd
       .output(outputPath)
-      .on('start', cmdLine => console.log('[FFmpeg] Démarrage :', cmdLine.slice(0, 100) + '...'))
-      .on('progress', p => {
-        if (p.percent) process.stdout.write(`\r[FFmpeg] ${Math.round(p.percent)}%`);
+
+      .on("start", commandLine => {
+        console.log("===== COMMANDE FFMPEG =====");
+        console.log(commandLine);
+        console.log("===========================");
       })
-      .on('end', () => {
-        process.stdout.write('\n');
+
+      .on("progress", progress => {
+        if (progress.percent) {
+          process.stdout.write(
+            `\r[FFmpeg] ${Math.round(progress.percent)}%`
+          );
+        }
+      })
+
+      .on("end", () => {
+        process.stdout.write("\n");
         resolve();
       })
-      .on('error', (err, stdout, stderr) => {
-        console.error('[FFmpeg] Erreur :', err.message);
-        console.error('[FFmpeg] stderr :', stderr?.slice(-500));
-        reject(new Error(`Erreur FFmpeg : ${err.message}`));
+
+      .on("error", (err, stdout, stderr) => {
+        console.error("===== STDERR FFMPEG =====");
+        console.error(stderr);
+        console.error("=========================");
+        reject(err);
       })
+
       .run();
+
   });
 }
-
 /* ── Filtre vidéo (resize + sous-titres) ── */
 function construireFiltrVideo(sousTitresFichier) {
   const resize = `scale=${FORMAT_TIKTOK.largeur}:${FORMAT_TIKTOK.hauteur}:force_original_aspect_ratio=decrease,pad=${FORMAT_TIKTOK.largeur}:${FORMAT_TIKTOK.hauteur}:(ow-iw)/2:(oh-ih)/2:black`;
