@@ -123,8 +123,12 @@ function monterVideo({ listeFichier, voixFichier, musiqueFichier, sousTitresFich
     let cmd = ffmpeg();
 
     // Input 1 : séquence d'images
-    cmd = cmd.input(listeFichier)
-             .inputOptions(['-f', 'concat', '-safe', '0']);
+    cmd
+  .inputOptions([
+    '-f', 'concat',
+    '-safe', '0'
+  ])
+  .input(listeFichier);
     console.log("[Video] FFmpeg va lire :", listeFichier);
 
 if (!fs.existsSync(listeFichier)) {
