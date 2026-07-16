@@ -98,8 +98,8 @@ app.post('/api/generer', async (req, res) => {
     const voixResult = await genererVoix({
       texte:      contenu.script,
       langue,
-      qualite:    'standard',
-      outputPath: path.join(TMP_DIR, `voix_${sessionId}.mp3`)
+      voix:       process.env.TTS_VOIX || null,  // null = voix par défaut selon la langue
+      outputPath: path.join(TMP_DIR, `voix_${sessionId}.wav`)
     });
     envoyerProgression(sessionId, 'voix_ok', `Voix générée (${voixResult.duree}s)`, { pct: 45 });
 
@@ -160,6 +160,12 @@ app.post('/api/generer', async (req, res) => {
     console.error(`[Erreur] ${sessionId} :`, err.message);
     envoyerProgression(sessionId, 'erreur', err.message, { pct: 0 });
   }
+});
+
+/* ── Route : voix disponibles ────────── */
+app.get('/api/voix', (req, res) => {
+  const { listerVoix } = require('./src/ttsManager');
+  res.json({ voix: listerVoix(), modele: 'gemini-2.5-flash-preview-tts' });
 });
 
 /* ── Route : status TikTok ───────────── */

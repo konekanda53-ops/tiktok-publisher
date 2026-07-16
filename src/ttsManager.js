@@ -1,139 +1,223 @@
 /* ═══════════════════════════════════════
    TIKTOK IA STUDIO V2 — ttsManager.js
-   Text-to-Speech avec retry automatique
-   et messages d'erreur clairs
+   Text-to-Speech via Gemini 2.5 TTS
+   ─────────────────────────────────────
+   Remplace entièrement Google Cloud TTS.
+   Utilise uniquement GEMINI_API_KEY.
+   Retry automatique × 3 si quota dépassé.
 ═══════════════════════════════════════ */
 
 const axios = require('axios');
 const fs    = require('fs');
 const path  = require('path');
 
-const TMP_DIR       = process.env.TMP_DIR || './tmp';
-const MAX_RETRIES   = 3;
-const RETRY_DELAYS  = [3000, 8000, 15000]; // ms entre chaque tentative
+const TMP_DIR      = process.env.TMP_DIR || './tmp';
+const GEMINI_API   = 'https://generativelanguage.googleapis.com/v1beta/models';
+const MODEL_TTS    = 'gemini-2.5-flash-preview-tts';
 
-/* ── Voix disponibles ────────────────── */
-const VOIX = {
-  'fr-FR': {
-    standard: 'fr-FR-Standard-A',
-    hd:       'fr-FR-Neural2-A',
-    masculine:'fr-FR-Standard-B'
+const MAX_RETRIES  = 3;
+const RETRY_DELAYS = [4000, 10000, 20000]; // ms entre chaque tentative
+
+/* ── Voix Gemini disponibles ─────────── */
+/*
+  Gemini TTS est multilingue : la même voix
+  parle français, anglais, etc. selon le texte.
+
+  Voix disponibles (mai 2025) :
+  ┌─────────────┬──────────┬────────────────────────────┐
+  │ Nom         │ Genre    │ Caractère                  │
+  ├─────────────┼──────────┼────────────────────────────┤
+  │ Aoede       │ Féminin  │ Douce, narrative           │
+  │ Charon      │ Masculin │ Grave, posé                │
+  │ Fenrir      │ Masculin │ Dynamique, énergique       │
+  │ Kore        │ Féminin  │ Claire, professionnelle    │
+  │ Puck        │ Masculin │ Vif, expressif             │
+  │ Orbit       │ Masculin │ Neutre, informatif         │
+  │ Zephyr      │ Féminin  │ Légère, moderne            │
+  │ Leda        │ Féminin  │ Chaleureuse                │
+  └─────────────┴──────────┴────────────────────────────┘
+*/
+const VOIX_GEMINI = {
+  féminin: {
+    douce:          'Aoede',
+    claire:         'Kore',
+    moderne:        'Zephyr',
+    chaleureuse:    'Leda'
   },
-  'en-US': {
-    standard: 'en-US-Standard-A',
-    hd:       'en-US-Neural2-A',
-    masculine:'en-US-Standard-B'
+  masculin: {
+    grave:          'Charon',
+    dynamique:      'Fenrir',
+    expressif:      'Puck',
+    neutre:         'Orbit'
   }
 };
 
-/* ── Génération principale ───────────── */
-async function genererVoix({ texte, langue = 'fr-FR', qualite = 'standard', outputPath }) {
-  if (!texte || texte.trim().length === 0) throw new Error('Texte vide pour la voix');
-  if (!process.env.GOOGLE_TTS_API_KEY) throw new Error('GOOGLE_TTS_API_KEY manquant dans .env');
+/* Voix par défaut selon la langue */
+const VOIX_PAR_DEFAUT = {
+  'fr-FR': 'Aoede',   // Féminine douce — très bien pour le français
+  'en-US': 'Orbit',   // Neutre informatif
+  'default': 'Aoede'
+};
 
-  const nomVoix = VOIX[langue]?.[qualite] || VOIX['fr-FR'].standard;
-  const fichier  = outputPath || path.join(TMP_DIR, `voix_${Date.now()}.mp3`);
+/* ══════════════════════════════════════
+   FONCTION PRINCIPALE
+══════════════════════════════════════ */
+async function genererVoix({ texte, langue = 'fr-FR', voix = null, outputPath }) {
+  if (!texte || texte.trim().length === 0) {
+    throw new Error('Texte vide — impossible de générer la voix.');
+  }
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY manquant dans votre fichier .env');
+  }
 
-  // S'assurer que le dossier existe
+  // Choisir la voix
+  const nomVoix = voix || VOIX_PAR_DEFAUT[langue] || VOIX_PAR_DEFAUT['default'];
+
+  // Préparer le fichier de sortie (.wav — Gemini retourne du PCM/WAV)
+  const fichier = outputPath
+    ? outputPath.replace(/\.(mp3|ogg)$/i, '.wav')
+    : path.join(TMP_DIR, `voix_${Date.now()}.wav`);
+
   fs.mkdirSync(path.dirname(fichier), { recursive: true });
 
+  // Boucle de tentatives
   for (let tentative = 1; tentative <= MAX_RETRIES; tentative++) {
     try {
-      console.log(`[TTS] Tentative ${tentative}/${MAX_RETRIES} — voix : ${nomVoix}`);
+      console.log(`[TTS Gemini] Tentative ${tentative}/${MAX_RETRIES} | voix : ${nomVoix} | langue : ${langue}`);
 
-      const audio = await appelAPITTS({ texte, langue, nomVoix });
-      fs.writeFileSync(fichier, Buffer.from(audio, 'base64'));
+      const audioBase64 = await appelGeminiTTS({ texte, nomVoix });
+      const audioBuffer  = Buffer.from(audioBase64, 'base64');
+      fs.writeFileSync(fichier, audioBuffer);
 
-      console.log(`[TTS] ✓ Voix générée : ${fichier}`);
+      const duree = estimerDuree(texte);
+      console.log(`[TTS Gemini] ✓ Audio généré : ${fichier} (~${duree}s | ${(audioBuffer.length / 1024).toFixed(0)} Ko)`);
+
       return {
-        success:  true,
+        success : true,
         fichier,
-        duree:    estimerDuree(texte),
+        duree,
         langue,
-        voix:     nomVoix
+        voix    : nomVoix,
+        modele  : MODEL_TTS
       };
 
     } catch (err) {
-      const estQuota    = err.code === 'QUOTA' || err.response?.status === 429;
-      const estServeur  = err.response?.status >= 500;
-      const peutReessayer = estQuota || estServeur;
+      const peutReessayer = estErreurRecuperable(err);
 
       if (tentative < MAX_RETRIES && peutReessayer) {
         const delai = RETRY_DELAYS[tentative - 1];
-        console.warn(`[TTS] Quota/erreur serveur. Nouvelle tentative dans ${delai / 1000}s...`);
+        console.warn(`[TTS Gemini] ${formaterCodeErreur(err)} — nouvelle tentative dans ${delai / 1000}s...`);
         await attendre(delai);
         continue;
       }
-      console.error("===== ERREUR GOOGLE TTS =====");
-console.error("Status :", err.response?.status);
-console.error("Data :", JSON.stringify(err.response?.data, null, 2));
 
-      // Erreur finale — message lisible
-      throw new Error(formaterErreurTTS(err, tentative));
+      // Toutes les tentatives épuisées ou erreur non récupérable
+      throw new Error(formaterMessageErreur(err, tentative));
     }
   }
 }
 
-/* ── Appel API Google TTS ────────────── */
-async function appelAPITTS({ texte, langue, nomVoix }) {
+/* ══════════════════════════════════════
+   APPEL API GEMINI TTS
+══════════════════════════════════════ */
+async function appelGeminiTTS({ texte, nomVoix }) {
+  const url = `${GEMINI_API}/${MODEL_TTS}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
   const response = await axios.post(
-    `https://texttospeech.googleapis.com/v1/text:synthesize?key=${process.env.GOOGLE_TTS_API_KEY}`,
+    url,
     {
-      input: { text: texte },
-      voice: {
-        languageCode: langue,
-        name: nomVoix,
-        ssmlGender: nomVoix.includes('-B') ? 'MALE' : 'FEMALE'
-      },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        speakingRate: 1.0,
-        pitch: 0,
-        volumeGainDb: 0
+      contents: [
+        {
+          parts: [{ text: texte }]
+        }
+      ],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: nomVoix
+            }
+          }
+        }
       }
     },
-    { timeout: 30000 }
+    {
+      timeout: 60000,  // 60s — les longs textes peuvent prendre du temps
+      headers: { 'Content-Type': 'application/json' }
+    }
   );
 
-  if (!response.data?.audioContent) {
-    throw new Error('Réponse TTS vide');
+  // Extraire l'audio de la réponse
+  const part = response.data?.candidates?.[0]?.content?.parts?.[0];
+
+  if (!part?.inlineData?.data) {
+    // Afficher la réponse brute pour aider au debug
+    console.error('[TTS Gemini] Réponse inattendue :', JSON.stringify(response.data).slice(0, 300));
+    throw new Error('Réponse Gemini TTS vide ou format inattendu.');
   }
 
-  return response.data.audioContent;
+  return part.inlineData.data; // base64
 }
 
-/* ── Helpers ─────────────────────────── */
+/* ══════════════════════════════════════
+   HELPERS
+══════════════════════════════════════ */
+
 function attendre(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function estimerDuree(texte) {
-  // Environ 140 mots par minute en français
+  // ~140 mots/minute en français, ~150 en anglais
   const nbMots = texte.trim().split(/\s+/).length;
   return Math.round((nbMots / 140) * 60);
 }
 
-function formaterErreurTTS(err, tentatives) {
-  if (err.response?.status === 429) {
-    return `Le service de voix est momentanément surchargé après ${tentatives} tentative(s). Réessayez dans quelques minutes.`;
-  }
-  if (err.response?.status === 401 || err.response?.status === 403) {
-    return 'Clé API Google TTS invalide ou non autorisée. Vérifiez GOOGLE_TTS_API_KEY dans votre .env';
-  }
-  if (err.response?.status >= 500) {
-    return `Serveur Google TTS indisponible (${err.response.status}). Réessayez plus tard.`;
-  }
-  if (err.code === 'ECONNABORTED') {
-    return 'Timeout TTS — le texte est peut-être trop long. Essayez de réduire le script.';
-  }
-  return `Erreur TTS inattendue : ${err.message}`;
+function estErreurRecuperable(err) {
+  const status = err.response?.status;
+  // 429 = quota, 5xx = erreur serveur temporaire
+  return status === 429 || (status >= 500 && status < 600);
 }
 
-/* ── Liste les voix disponibles ──────── */
+function formaterCodeErreur(err) {
+  const status = err.response?.status;
+  if (status === 429) return 'Quota dépassé (429)';
+  if (status >= 500)  return `Erreur serveur (${status})`;
+  return err.message;
+}
+
+function formaterMessageErreur(err, nbTentatives) {
+  const status = err.response?.status;
+
+  if (status === 429) {
+    return `Le service de voix Gemini est momentanément surchargé après ${nbTentatives} tentative(s). Attendez quelques minutes et réessayez.`;
+  }
+  if (status === 401 || status === 403) {
+    return 'Clé Gemini invalide ou sans permission TTS. Vérifiez GEMINI_API_KEY dans votre .env et activez l\'API Gemini sur Google AI Studio.';
+  }
+  if (status === 404) {
+    return `Modèle Gemini TTS introuvable (${MODEL_TTS}). Vérifiez que le modèle est bien disponible dans votre région.`;
+  }
+  if (status >= 500) {
+    return `Serveur Gemini TTS indisponible (${status}) après ${nbTentatives} tentative(s). Réessayez plus tard.`;
+  }
+  if (err.code === 'ECONNABORTED') {
+    return 'Timeout Gemini TTS — le texte est peut-être trop long. Essayez de réduire le script à moins de 500 mots.';
+  }
+  return `Erreur Gemini TTS inattendue : ${err.message}`;
+}
+
+/* ── Lister les voix disponibles ─────── */
 function listerVoix() {
-  return Object.entries(VOIX).flatMap(([lang, voix]) =>
-    Object.entries(voix).map(([qualite, nom]) => ({ langue: lang, qualite, nom }))
+  return Object.entries(VOIX_GEMINI).flatMap(([genre, voix]) =>
+    Object.entries(voix).map(([caractere, nom]) => ({
+      nom,
+      genre,
+      caractere,
+      modele: MODEL_TTS
+    }))
   );
 }
 
-module.exports = { genererVoix, listerVoix };
+module.exports = { genererVoix, listerVoix, VOIX_GEMINI };

@@ -7,7 +7,7 @@
 const axios = require('axios');
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
 /* ── Prompt système ──────────────────── */
 const SYSTEM_PROMPT = `Tu es un expert en création de contenu viral pour TikTok.
@@ -78,14 +78,7 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
     if (err.response?.status === 400) {
       throw new Error(`Paramètre invalide Gemini : ${err.response.data?.error?.message}`);
     }
-    console.error("===== ERREUR GEMINI =====");
-console.error("URL :", `${GEMINI_API_URL}/${MODEL}:generateContent`);
-console.error("Status :", err.response?.status);
-console.error("Data :", JSON.stringify(err.response?.data, null, 2));
-console.error(err.message);
-console.error("========================");
-
-throw err;
+    throw err;
   }
 }
 

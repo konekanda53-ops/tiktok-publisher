@@ -38,10 +38,37 @@ npm run dev
 
 | Service | Variable | Où l'obtenir |
 |---------|----------|--------------|
-| Google Gemini | `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) |
-| Google TTS | `GOOGLE_TTS_API_KEY` | [console.cloud.google.com](https://console.cloud.google.com) |
+| Google Gemini (script + voix) | `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) |
 | Pexels | `PEXELS_API_KEY` | [pexels.com/api](https://www.pexels.com/api/) |
 | TikTok | `TIKTOK_*` | [developers.tiktok.com](https://developers.tiktok.com) |
+
+> ✅ **Une seule clé Gemini** pour le script IA **et** la voix TTS.
+> Google Cloud TTS n'est plus utilisé.
+
+## Pipeline complet
+
+```
+Gemini 1.5 Flash  →  Script, titre, hashtags, mots-clés
+Gemini 2.5 TTS    →  Voix audio (.wav)
+Pexels            →  Images HD
+FFmpeg            →  Montage vidéo 1080×1920
+TikTok API        →  Publication (brouillon)
+```
+
+## Voix Gemini disponibles
+
+| Voix | Genre | Caractère |
+|------|-------|-----------|
+| **Aoede** *(défaut fr-FR)* | Féminin | Douce, narrative |
+| Kore | Féminin | Claire, professionnelle |
+| Zephyr | Féminin | Légère, moderne |
+| Leda | Féminin | Chaleureuse |
+| Charon | Masculin | Grave, posé |
+| Fenrir | Masculin | Dynamique, énergique |
+| Puck | Masculin | Vif, expressif |
+| **Orbit** *(défaut en-US)* | Masculin | Neutre, informatif |
+
+Configurable via `TTS_VOIX=Charon` dans le `.env`.
 
 ---
 
