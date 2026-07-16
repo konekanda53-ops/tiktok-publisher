@@ -79,21 +79,41 @@ async function creerVideo(videoData) {
 }
 
 /* ── Créer le fichier liste FFmpeg ───── */
+
 async function creerListeImages(images) {
-  const lignes = images.map(img => {
-    // Redimensionner l'image pour TikTok si nécessaire
-    return [
-      `file '${path.resolve(img.fichier)}'`,
-      `duration ${img.dureeAffichage.toFixed(3)}`
-    ].join('\n');
-  });
 
-  // FFmpeg requiert la dernière image dupliquée
-  const derniere = images[images.length - 1];
-  lignes.push(`file '${path.resolve(derniere.fichier)}'`);
+  fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  const listeFichier = path.join(TMP_DIR, `liste_${Date.now()}.txt`);
-  fs.writeFileSync(listeFichier, lignes.join('\n'));
+  const listeFichier = path.resolve(
+    TMP_DIR,
+    `liste_${Date.now()}.txt`
+  );
+
+  let contenu = "";
+
+  for (const img of images) {
+
+    const imagePath = path.resolve(img.fichier);
+
+    if (!fs.existsSync(imagePath)) {
+      throw new Error(`Image introuvable : ${imagePath}`);
+    }
+
+    contenu += `file '${imagePath.replace(/\\/g, "/")}'\n`;
+    contenu += `duration ${img.dureeAffichage.toFixed(3)}\n`;
+  }
+
+  const derniereImage = path.resolve(images[images.length - 1].fichier);
+  contenu += `file '${derniereImage.replace(/\\/g, "/")}'\n`;
+
+  fs.writeFileSync(listeFichier, contenu, "utf8");
+
+  if (!fs.existsSync(listeFichier)) {
+    throw new Error(`Impossible de créer ${listeFichier}`);
+  }
+
+  console.log("[Video] Liste FFmpeg :", listeFichier);
+
   return listeFichier;
 }
 
@@ -105,7 +125,11 @@ function monterVideo({ listeFichier, voixFichier, musiqueFichier, sousTitresFich
     // Input 1 : séquence d'images
     cmd = cmd.input(listeFichier)
              .inputOptions(['-f', 'concat', '-safe', '0']);
+    console.log("[Video] FFmpeg va lire :", listeFichier);
 
+if (!fs.existsSync(listeFichier)) {
+    throw new Error("Le fichier liste FFmpeg est introuvable.");
+}
     // Input 2 : voix
     cmd = cmd.input(voixFichier);
 
