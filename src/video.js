@@ -123,16 +123,21 @@ function monterVideo({ listeFichier, voixFichier, musiqueFichier, sousTitresFich
     let cmd = ffmpeg();
 
     // Input 1 : séquence d'images
-    cmd
+    let cmd = ffmpeg();
+
+cmd = cmd
+  .input(listeFichier)
   .inputOptions([
-    '-f', 'concat',
-    '-safe', '0'
-  ])
-  .input(listeFichier);
-    console.log("[Video] FFmpeg va lire :", listeFichier);
+    "-f",
+    "concat",
+    "-safe",
+    "0"
+  ]);
+
+console.log("[Video] FFmpeg va lire :", listeFichier);
 
 if (!fs.existsSync(listeFichier)) {
-    throw new Error("Le fichier liste FFmpeg est introuvable.");
+  throw new Error("Le fichier liste FFmpeg est introuvable.");
 }
     // Input 2 : voix
     cmd = cmd.input(voixFichier);
