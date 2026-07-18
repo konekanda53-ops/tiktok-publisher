@@ -30,26 +30,56 @@ async function genererContenu({ sujet, duree = 60, langue = 'fr', style = 'infor
   if (!sujet) throw new Error('Le sujet est requis');
   if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY manquant dans .env');
 
-  const nbMots = Math.round((duree / 60) * 150);
+  const nbMots = Math.round(duree * 2.4); // environ 145 mots/min
 
-  const prompt = `
-Crée un script TikTok ${style} sur le sujet : "${sujet}"
+const prompt = `
+Tu es un scénariste professionnel spécialisé dans les vidéos TikTok.
 
-Contraintes :
-- Durée cible : ${duree} secondes
-- Script d'environ ${nbMots} mots
-- Langue : ${langue}
-- Ton : engageant, direct, adapté à TikTok
-- Commence par une accroche forte (hook) dans les 3 premières secondes
+Mission :
+Créer une vidéo complète à partir du sujet fourni.
 
-Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
+Sujet :
+"${sujet}"
+
+Style :
+${style}
+
+Durée :
+${duree} secondes
+
+IMPORTANT :
+
+- Le script doit durer environ ${duree} secondes.
+- Écris environ ${nbMots} mots.
+- Si le sujet est une histoire, raconte-la entièrement.
+- Si le sujet est seulement un thème, invente une histoire captivante.
+- Ne résume jamais l'histoire.
+- Fais des phrases courtes.
+- Chaque phrase doit donner envie de continuer.
+- Termine par une chute ou une morale.
+- Le texte doit être naturel à lire par une IA.
+
+Description :
+- moins de 150 caractères
+
+Hashtags :
+- 5 hashtags
+
+Visual keywords :
+- entre 10 et 20 mots-clés EN ANGLAIS
+- uniquement des objets, personnes, lieux ou actions visibles
+- un mot-clé par élément
+
+Réponds UNIQUEMENT avec :
+
 {
-  "titre": "titre accrocheur de max 60 caractères",
-  "script": "script complet narré en ${langue}",
-  "description": "description TikTok avec emojis, max 150 caractères",
-  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
-  "visual_keywords": ["3 à 5 mots-clés en anglais pour chercher des images sur Pexels"]
-}`;
+  "titre":"",
+  "script":"",
+  "description":"",
+  "hashtags":[],
+  "visual_keywords":[]
+}
+`;
 
   try {
     const response = await axios.post(
@@ -59,7 +89,7 @@ Réponds UNIQUEMENT avec ce JSON (aucun texte avant ou après) :
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.8,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json'
         }
       },
