@@ -183,6 +183,9 @@ outputPath = path.resolve(outputPath);
       "-crf", FORMAT_TIKTOK.crf,
       "-r", FORMAT_TIKTOK.fps,
       "-pix_fmt", "yuv420p",
+      "-shortest",
+      "-t", String(dureeAudio),
+      "-vsync", "2",
       "-t", String(dureeAudio)
     ]);
 
