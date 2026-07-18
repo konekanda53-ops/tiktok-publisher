@@ -1,28 +1,40 @@
 /* ═══════════════════════════════════════
    TIKTOK IA STUDIO V2 — ia.js
    Génération de contenu via Google Gemini
-   Format JSON garanti — jamais d'undefined
+   JSON Schema strict — plus de JSON.parse cassé
+   Plus de fallback générique
 ═══════════════════════════════════════ */
 
 const axios = require('axios');
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 /* ── Prompt système ──────────────────── */
-const SYSTEM_PROMPT = `Tu es un expert en création de contenu viral pour TikTok.
+const SYSTEM_PROMPT = `Tu es un scénariste professionnel spécialisé dans les vidéos TikTok virales.
 Tu dois TOUJOURS répondre en JSON valide et rien d'autre.
 Ne mets jamais de texte avant ou après le JSON.
 Ne mets jamais de balises markdown comme \`\`\`json.
-Réponds uniquement avec l'objet JSON demandé.`;
+Ne résume jamais une histoire : produis toujours un script COMPLET, jamais un résumé.`;
 
-/* ── Schéma de réponse attendu ───────── */
-const SCHEMA_EXEMPLE = {
-  titre: "Titre accrocheur de la vidéo",
-  script: "Texte complet du script narré, environ 150 mots pour 60 secondes",
-  description: "Description TikTok avec emojis (max 150 caractères)",
-  hashtags: ["#hashtag1", "#hashtag2", "#hashtag3"],
-  visual_keywords: ["mot-clé visuel 1", "mot-clé visuel 2", "mot-clé visuel 3"]
+/* ── JSON Schema strict envoyé à Gemini ──────────────────── */
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    titre: { type: 'string' },
+    script: { type: 'string' },
+    description: { type: 'string' },
+    hashtags: {
+      type: 'array',
+      items: { type: 'string' }
+    },
+    visual_keywords: {
+      type: 'array',
+      items: { type: 'string' }
+    }
+  },
+  required: ['titre', 'script', 'description', 'hashtags', 'visual_keywords'],
+  propertyOrdering: ['titre', 'script', 'description', 'hashtags', 'visual_keywords']
 };
 
 /* ── Génération principale ───────────── */
@@ -30,55 +42,54 @@ async function genererContenu({ sujet, duree = 60, langue = 'fr', style = 'infor
   if (!sujet) throw new Error('Le sujet est requis');
   if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY manquant dans .env');
 
-  const nbMots = Math.round(duree * 2.4); // environ 145 mots/min
+  // Calcul du nombre de mots : ~2.7 mots/seconde pour une narration naturelle
+  const nbMots = Math.round((duree / 60) * 420);
 
-const prompt = `
-Tu es un scénariste professionnel spécialisé dans les vidéos TikTok.
+  const prompt = `
+Tu es un scénariste professionnel spécialisé dans les vidéos TikTok virales.
 
-Mission :
-Créer une vidéo complète à partir du sujet fourni.
+Sujet : "${sujet}"
+Style : ${style}
+Langue : ${langue}
+Durée cible : ${duree} secondes
 
-Sujet :
-"${sujet}"
+Tu dois produire une vidéo COMPLETE. Ne résume jamais.
+Le script doit durer environ ${duree} secondes.
+Écris environ ${nbMots} mots (ni beaucoup moins, ni beaucoup plus).
 
-Style :
-${style}
+Structure obligatoire du script :
 
-Durée :
-${duree} secondes
+HOOK
+Débute par une phrase qui choque ou intrigue, pour capter l'attention dès la première seconde.
 
-IMPORTANT :
+DÉVELOPPEMENT
+Déroule l'histoire progressivement, avec des phrases courtes et naturelles.
+Chaque phrase doit donner envie d'écouter la suivante.
+Ajoute des émotions et du rythme.
 
-- Le script doit durer environ ${duree} secondes.
-- Écris environ ${nbMots} mots.
-- Si le sujet est une histoire, raconte-la entièrement.
-- Si le sujet est seulement un thème, invente une histoire captivante.
-- Ne résume jamais l'histoire.
-- Fais des phrases courtes.
-- Chaque phrase doit donner envie de continuer.
-- Termine par une chute ou une morale.
-- Le texte doit être naturel à lire par une IA.
+CONCLUSION
+Termine par une chute, une révélation ou une morale marquante.
 
-Description :
-- moins de 150 caractères
+Contraintes sur le texte :
+- Le texte doit être parfaitement naturel pour une voix IA (lecture à voix haute).
+- Ne mets jamais d'indications de mise en scène comme "Narrateur :", "Musique :", "Plan :", "Scène :".
+- Uniquement le texte parlé, rien d'autre.
+
+Description TikTok :
+- Moins de 150 caractères.
+- Avec emojis pertinents.
+- Accrocheuse, donne envie de regarder jusqu'au bout.
 
 Hashtags :
-- 5 hashtags
+- 5 hashtags pertinents et viraux, en rapport avec le sujet.
 
-Visual keywords :
-- entre 10 et 20 mots-clés EN ANGLAIS
-- uniquement des objets, personnes, lieux ou actions visibles
-- un mot-clé par élément
+Visual keywords (pour rechercher des vidéos/images sur Pexels) :
+- Entre 20 et 40 mots-clés, TOUS en anglais.
+- Chaque mot-clé représente un élément visuel concret : une personne, un objet, un lieu, une émotion, une action ou une ambiance.
+- Aucun doublon.
+- Pas de mots abstraits non visualisables.
 
-Réponds UNIQUEMENT avec :
-
-{
-  "titre":"",
-  "script":"",
-  "description":"",
-  "hashtags":[],
-  "visual_keywords":[]
-}
+Réponds uniquement avec l'objet JSON demandé, conforme au schéma fourni.
 `;
 
   try {
@@ -90,10 +101,11 @@ Réponds UNIQUEMENT avec :
         generationConfig: {
           temperature: 0.8,
           maxOutputTokens: 4096,
-          responseMimeType: 'application/json'
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA
         }
       },
-      { timeout: 30000 }
+      { timeout: 60000 }
     );
 
     const rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -116,45 +128,50 @@ Réponds UNIQUEMENT avec :
 function validerEtNormaliser(rawText, sujet) {
   let data;
 
-  // Nettoyer le texte (enlever les éventuelles balises markdown)
+  // Nettoyer le texte (au cas où Gemini ajouterait quand même des balises markdown)
   const cleaned = rawText
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
     .trim();
 
+  // Toujours afficher la réponse complète de Gemini pour pouvoir déboguer
+  console.log('========== REPONSE GEMINI ==========');
+  console.log(cleaned);
+  console.log('=====================================');
+
   try {
     data = JSON.parse(cleaned);
   } catch (parseErr) {
-    console.error('[IA] Erreur parsing JSON :', cleaned.slice(0, 200));
-    // Fallback : retourner une structure minimale valide
-    return {
-      titre: `Vidéo TikTok sur : ${sujet}`,
-      script: `Voici une vidéo sur le sujet : ${sujet}. Restez connectés pour plus de contenu.`,
-      description: `Découvrez tout sur ${sujet} 🔥 #viral #tiktok`,
-      hashtags: ['#tiktok', '#viral', '#contenu'],
-      visual_keywords: [sujet, 'people', 'action']
-    };
+    // Plus de fallback générique qui produisait des vidéos de 8 secondes.
+    // On fait remonter l'erreur pour la voir immédiatement.
+    throw new Error(
+      `Gemini n'a pas renvoyé un JSON valide. Détail : ${parseErr.message}`
+    );
   }
 
-  // Normaliser chaque champ — jamais d'undefined
+  // Vérification des champs obligatoires
+  const champsManquants = ['titre', 'script', 'description', 'hashtags', 'visual_keywords']
+    .filter((champ) => data[champ] === undefined || data[champ] === null);
+
+  if (champsManquants.length > 0) {
+    throw new Error(
+      `Réponse Gemini incomplète, champs manquants : ${champsManquants.join(', ')}`
+    );
+  }
+
+  if (typeof data.script !== 'string' || data.script.trim().length < 50) {
+    throw new Error('Le script renvoyé par Gemini est trop court ou invalide.');
+  }
+
   return {
-    titre:            garantirString(data.titre,        `Vidéo sur : ${sujet}`),
-    script:           garantirString(data.script,       `Contenu sur le sujet : ${sujet}`),
-    description:      garantirString(data.description,  `${sujet} 🔥 #viral`).slice(0, 150),
-    hashtags:         garantirTableau(data.hashtags,    ['#tiktok', '#viral']),
-    visual_keywords:  garantirTableau(data.visual_keywords, [sujet, 'people'])
+    titre: String(data.titre).trim(),
+    script: String(data.script).trim(),
+    description: String(data.description).trim().slice(0, 150),
+    hashtags: Array.isArray(data.hashtags) ? data.hashtags : [data.hashtags].filter(Boolean),
+    visual_keywords: Array.isArray(data.visual_keywords)
+      ? data.visual_keywords
+      : [data.visual_keywords].filter(Boolean)
   };
-}
-
-/* ── Helpers ─────────────────────────── */
-function garantirString(valeur, fallback) {
-  if (typeof valeur === 'string' && valeur.trim().length > 0) return valeur.trim();
-  return fallback;
-}
-
-function garantirTableau(valeur, fallback) {
-  if (Array.isArray(valeur) && valeur.length > 0) return valeur;
-  return fallback;
 }
 
 module.exports = { genererContenu };
