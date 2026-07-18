@@ -62,11 +62,13 @@ async function creerVideo(videoData) {
     outputPath,
     dureeAudio
   });
+  console.log("Montage terminé.");
 
   // 4. Nettoyer les fichiers temporaires
   nettoyerTemp([listeFichier]);
 
   const stats = fs.statSync(outputPath);
+  console.log("Le fichier existe :", fs.existsSync(outputPath));
   console.log(`[Video] ✓ Vidéo créée : ${outputPath} (${(stats.size / 1024 / 1024).toFixed(1)} Mo)`);
 
   return {
@@ -224,17 +226,24 @@ outputPath = path.resolve(outputPath);
         }
       })
 
-      .on("end", () => {
-        process.stdout.write("\n");
-        resolve();
-      })
-
             .on("error", (err, stdout, stderr) => {
-        console.error("===== STDERR FFMPEG =====");
-        console.error(stderr);
-        console.error("=========================");
-        reject(err);
-      });
+    console.log("========== ERREUR FFMPEG ==========");
+    console.log("Message :", err.message);
+    console.log("Code :", err.code);
+    console.log("stdout :");
+    console.log(stdout);
+    console.log("stderr :");
+    console.log(stderr);
+    console.log("===================================");
+
+    reject(err);
+})
+.on("end", () => {
+    console.log("========== VIDEO TERMINEE ==========");
+    console.log(outputPath);
+    console.log("====================================");
+    resolve();
+});
 
 // Vérification juste avant d'exécuter FFmpeg
 console.log("===== VERIFICATION DES FICHIERS =====");
@@ -243,6 +252,16 @@ console.log("Voix  :", voixFichier, fs.existsSync(voixFichier));
 console.log("Subs  :", sousTitresFichier, fs.existsSync(sousTitresFichier));
 console.log("Sortie:", outputPath);
 console.log("=====================================");
+
+cmd
+  .on("codecData", data => {
+    console.log("===== CODEC =====");
+    console.log(data);
+  })
+
+  .on("stderr", line => {
+    console.log("[FFMPEG]", line);
+  });
 
 cmd.run();
 
