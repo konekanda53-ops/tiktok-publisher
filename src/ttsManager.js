@@ -86,8 +86,28 @@ async function genererVoix({ texte, langue = 'fr-FR', voix = null, outputPath })
       console.log(`[TTS Gemini] Tentative ${tentative}/${MAX_RETRIES} | voix : ${nomVoix} | langue : ${langue}`);
 
       const audioBase64 = await appelGeminiTTS({ texte, nomVoix });
-      const audioBuffer  = Buffer.from(audioBase64, 'base64');
-      fs.writeFileSync(fichier, audioBuffer);
+
+const pcm = Buffer.from(audioBase64, "base64");
+
+const wav = Buffer.concat([
+  creerHeaderWav(pcm.length),
+  pcm
+]);
+
+fs.writeFileSync(fichier, wav);
+
+      const stats = fs.statSync(fichier);
+
+console.log("Audio :", fichier);
+console.log("Taille :", stats.size);
+
+const fd = fs.openSync(fichier, "r");
+const buffer = Buffer.alloc(16);
+
+fs.readSync(fd, buffer, 0, 16, 0);
+fs.closeSync(fd);
+
+console.log(buffer);
 
       const duree = estimerDuree(texte);
       console.log(`[TTS Gemini] ✓ Audio généré : ${fichier} (~${duree}s | ${(audioBuffer.length / 1024).toFixed(0)} Ko)`);
@@ -151,13 +171,39 @@ async function appelGeminiTTS({ texte, nomVoix }) {
   // Extraire l'audio de la réponse
   const part = response.data?.candidates?.[0]?.content?.parts?.[0];
 
-  if (!part?.inlineData?.data) {
-    // Afficher la réponse brute pour aider au debug
-    console.error('[TTS Gemini] Réponse inattendue :', JSON.stringify(response.data).slice(0, 300));
-    throw new Error('Réponse Gemini TTS vide ou format inattendu.');
-  }
+if (!part?.inlineData?.data) {
+  console.error('[TTS Gemini] Réponse inattendue :', JSON.stringify(response.data).slice(0, 300));
+  throw new Error('Réponse Gemini TTS vide ou format inattendu.');
+}
 
-  return part.inlineData.data; // base64
+// 🔍 DEBUG : afficher le format audio renvoyé par Gemini
+console.log('[TTS Gemini] MIME TYPE :', part.inlineData.mimeType);
+console.log('[TTS Gemini] Taille base64 :', part.inlineData.data.length);
+
+return part.inlineData.data; // base64
+}
+
+/* ── Convertit le PCM en vrai fichier WAV ── */
+function creerHeaderWav(dataLength) {
+  const header = Buffer.alloc(44);
+
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataLength, 4);
+  header.write("WAVE", 8);
+
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(1, 22); // Mono
+  header.writeUInt32LE(24000, 24); // 24 kHz
+  header.writeUInt32LE(24000 * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+
+  header.write("data", 36);
+  header.writeUInt32LE(dataLength, 40);
+
+  return header;
 }
 
 /* ══════════════════════════════════════
