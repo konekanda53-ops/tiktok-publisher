@@ -110,8 +110,9 @@ fs.closeSync(fd);
 console.log(buffer);
 
       const duree = estimerDuree(texte);
-      console.log(`[TTS Gemini] ✓ Audio généré : ${fichier} (~${duree}s | ${(audioBuffer.length / 1024).toFixed(0)} Ko)`);
-
+      console.log(
+  `[TTS Gemini] ✓ Audio généré : ${fichier} (~${duree}s | ${(wav.length / 1024).toFixed(0)} Ko)`
+);
       return {
         success : true,
         fichier,
