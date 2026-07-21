@@ -277,7 +277,16 @@ function construireFiltrVideo(sousTitresFichier) {
   if (sousTitresFichier && fs.existsSync(sousTitresFichier)) {
     // Sous-titres style TikTok : blanc avec contour noir, centré en bas
     const cheminSubs = sousTitresFichier.replace(/\\/g, '/').replace(/:/g, '\\:');
-    const styleSubs  = 'FontSize=48,FontName=Arial,PrimaryColour=&Hffffff,OutlineColour=&H000000,Outline=3,Alignment=2,MarginV=120';
+    const styleSubs =
+"FontName=Times New Roman," +
+"FontSize=60," +
+"Bold=1," +
+"PrimaryColour=&H00FFFFFF," +
+"OutlineColour=&H00000000," +
+"Outline=5," +
+"Shadow=3," +
+"Alignment=2," +
+"MarginV=20";
     return `${resize},subtitles='${cheminSubs}':force_style='${styleSubs}'`;
   }
 
